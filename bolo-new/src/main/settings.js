@@ -74,6 +74,16 @@ const defaults = {
   // Speech-to-text. Groq serves whisper-large-v3-turbo, which is the fast one —
   // large-v3 is more accurate and several times slower.
   sttModel: 'whisper-large-v3-turbo',
+  // Which transcription backend to use. 'groq' is the default and changes
+  // nothing; 'sarvam' routes transcription to Sarvam's Saaras (Hindi/Hinglish);
+  // 'auto' uses Sarvam when a Sarvam key exists and Groq otherwise.
+  sttProvider: 'groq',
+  // Sarvam Saaras speech-to-text. Codemix is the default mode because the
+  // target users mix Hindi and English inside one sentence; language_code
+  // 'unknown' auto-detects the spoken language.
+  sarvamModel: 'saaras:v3',
+  sarvamMode: 'codemix',
+  sarvamLanguage: 'unknown',
 
   // Wake word. Off by default: an always-open microphone is a real cost and a
   // real privacy surface, so it has to be opted into.
