@@ -39,7 +39,9 @@ const DRUGS = [
 ];
 
 const TERMS = [
-  { name: 'fever', variants: ['bukhar', 'fevr', 'faver', 'feaver'] },
+  // Kannada is covered too: jwara (ಜ್ವರ) is fever, and Saaras transcribes it
+  // in Latin script in codemix mode, the same way it does bukhar.
+  { name: 'fever', variants: ['bukhar', 'jwara', 'jvara', 'fevr', 'faver', 'feaver'] },
   { name: 'BP', variants: ['be pee', 'b p', 'b.p.', 'bp'] },
   { name: 'diabetes', variants: ['diabeetus', 'diabities', 'diabetese', 'diabetees'] }
 ];
