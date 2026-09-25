@@ -16,6 +16,52 @@ const sarvamKey = $('sarvamKey');
 const keyState = $('keyState');
 
 let busy = false;
+let structuring = false;
+
+// The patient-note template, in paste order. complaints/vitals/prescription
+// get textareas (multi-line), the rest single-line inputs.
+const TEMPLATE = [
+  { key: 'name', label: 'Name', multiline: false },
+  { key: 'ageSex', label: 'Age/Sex', multiline: false },
+  { key: 'complaints', label: 'Complaints', multiline: true },
+  { key: 'vitals', label: 'Vitals', multiline: true },
+  { key: 'diagnosis', label: 'Diagnosis', multiline: false },
+  { key: 'prescription', label: 'Prescription', multiline: true }
+];
+const fieldEls = {};
+
+function buildTemplate() {
+  const mount = $('template');
+  mount.innerHTML = '';
+  const title = document.createElement('div');
+  title.className = 'label';
+  title.textContent = 'Patient note (editable)';
+  mount.appendChild(title);
+  for (const f of TEMPLATE) {
+    const lab = document.createElement('div');
+    lab.className = 'tlabel';
+    lab.textContent = f.label;
+    const input = f.multiline ? document.createElement('textarea') : document.createElement('input');
+    input.className = 'tfield' + (f.multiline ? ' tarea' : '');
+    input.placeholder = '—';
+    mount.appendChild(lab);
+    mount.appendChild(input);
+    fieldEls[f.key] = input;
+  }
+}
+
+// The pasted shape: fixed labels, fixed order, every field present even when
+// empty, so the clinic software always sees the same note.
+function formattedNote() {
+  return TEMPLATE.map((f) => {
+    const el = fieldEls[f.key];
+    return f.label + ': ' + (el ? el.value.trim() : '');
+  }).join('\n');
+}
+
+function clearTemplate() {
+  for (const f of TEMPLATE) if (fieldEls[f.key]) fieldEls[f.key].value = '';
+}
 
 function setStatus(text, live) {
   statusEl.textContent = text;
@@ -26,8 +72,29 @@ function setStatus(text, live) {
 function setTranscript(text) {
   transcriptEl.value = text || '';
   const has = !!(text && text.trim());
-  pasteBtn.disabled = !has;
   copyBtn.disabled = !has;
+  // Paste unlocks once the template has fields, not on the raw transcript.
+  if (!has) pasteBtn.disabled = true;
+}
+
+async function structureIntoTemplate(text) {
+  structuring = true;
+  pasteBtn.disabled = true;
+  setStatus('Organizing into the patient note…', false);
+  try {
+    const r = await bolo.doctorStructure(text);
+    const fields = (r && r.fields) || {};
+    for (const f of TEMPLATE) {
+      if (fieldEls[f.key]) fieldEls[f.key].value = fields[f.key] || '';
+    }
+    pasteBtn.disabled = false;
+    setStatus('Ready. Check the note, fix anything, then paste.', false);
+  } catch (e) {
+    // The transcript box still holds the words; the note just did not split.
+    setStatus('Ready. The note did not split into fields — paste from the transcript box.', false);
+  } finally {
+    structuring = false;
+  }
 }
 
 async function toggle() {
@@ -50,8 +117,13 @@ async function toggle() {
 micBtn.onclick = toggle;
 
 pasteBtn.onclick = async () => {
-  const text = transcriptEl.value.trim();
-  if (!text) return;
+  // Paste the reviewed template, not the raw transcript — the fields are what
+  // the doctor corrected.
+  const text = formattedNote();
+  if (!TEMPLATE.some((f) => fieldEls[f.key] && fieldEls[f.key].value.trim())) {
+    setStatus('The note is empty — dictate first.', false);
+    return;
+  }
   pasteBtn.disabled = true;
   setStatus('Pasting…', false);
   try {
@@ -71,8 +143,8 @@ pasteBtn.onclick = async () => {
 };
 
 copyBtn.onclick = async () => {
-  const text = transcriptEl.value;
-  if (!text) return;
+  const text = formattedNote();
+  if (!text.trim()) return;
   try { await navigator.clipboard.writeText(text); } catch (_) {}
   setStatus('Copied to clipboard.', false);
 };
@@ -118,10 +190,12 @@ bolo.on('bolo:doctor-result', (r) => {
   if (!r) return;
   if (r.text) {
     setTranscript(r.text);
-    setStatus('Ready. Review it, then paste.', false);
+    structureIntoTemplate(r.text);
   } else {
     setStatus('Heard nothing — try again, a little louder.', false);
   }
 });
 
+buildTemplate();
+clearTemplate();
 refreshKeyState();
