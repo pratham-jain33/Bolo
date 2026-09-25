@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bolo Doctor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #ffffff; color: #1a1a1a;
+    padding: 20px; font-size: 14px; line-height: 1.45;
+    -webkit-user-select: none; user-select: none;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 2px; }
+  .sub { color: #666; font-size: 12px; margin-bottom: 18px; }
+  .mic-wrap { display: flex; justify-content: center; margin: 10px 0 8px; }
+  #micBtn {
+    width: 110px; height: 110px; border-radius: 50%;
+    border: 3px solid #d0d0d0; background: #f4f4f4; cursor: pointer;
+    font-size: 44px; line-height: 1; transition: border-color .15s, background .15s;
+  }
+  #micBtn:hover { border-color: #999; }
+  #micBtn.live { border-color: #d43d3d; background: #fdeeee; animation: pulse 1.2s infinite; }
+  #micBtn:disabled { opacity: .5; cursor: default; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(212,61,61,.25); } 50% { box-shadow: 0 0 0 12px rgba(212,61,61,0); } }
+  #status { text-align: center; font-size: 13px; color: #555; min-height: 20px; margin-bottom: 14px; }
+  #status.live { color: #b3261e; font-weight: 600; }
+  .label { font-size: 12px; font-weight: 600; color: #555; margin: 12px 0 6px; }
+  #transcript {
+    width: 100%; height: 130px; resize: vertical;
+    border: 1px solid #ccc; border-radius: 6px; padding: 10px;
+    font-size: 14px; font-family: inherit; line-height: 1.5;
+    -webkit-user-select: text; user-select: text; background: #fafafa;
+  }
+  .row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn {
+    flex: 1; padding: 11px 8px; font-size: 14px; border-radius: 6px;
+    border: 1px solid #bbb; background: #f0f0f0; cursor: pointer; font-family: inherit;
+  }
+  .btn:hover:not(:disabled) { background: #e4e4e4; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: #1765cc; }
+  .keys { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e3e3e3; }
+  .keys .row { align-items: center; }
+  #sarvamKey {
+    flex: 1; padding: 9px 10px; font-size: 13px;
+    border: 1px solid #ccc; border-radius: 6px; font-family: inherit;
+  }
+  #keyState { font-size: 12px; color: #666; margin-top: 6px; }
+  .hint { margin-top: 14px; font-size: 11px; color: #999; text-align: center; }
+  #template { margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>Bolo Doctor</h1>
+  <div class="sub">Dictate the patient note, review it, paste it into your clinic software.</div>
+
+  <div class="mic-wrap">
+    <button id="micBtn" title="Start / stop dictation">&#127908;</button>
+  </div>
+  <div id="status">Ready. Tap the mic or press Ctrl+Shift+D.</div>
+
+  <div class="label">What you said</div>
+  <textarea id="transcript" readonly placeholder="Your dictation will appear here."></textarea>
+
+  <!-- Phase 3 mounts the patient-note template here. -->
+  <div id="template"></div>
+
+  <div class="row">
+    <button id="pasteBtn" class="btn primary" disabled>Paste into clinic software</button>
+    <button id="copyBtn" class="btn" disabled>Copy</button>
+  </div>
+
+  <div class="keys">
+    <div class="label" style="margin-top:0">Sarvam key <span style="font-weight:400;color:#888">(for Hindi / Hinglish)</span></div>
+    <div class="row">
+      <input id="sarvamKey" type="password" placeholder="Paste your Sarvam API key" autocomplete="off" />
+      <button id="keySave" class="btn" style="flex:0 0 auto">Save</button>
+    </div>
+    <div id="keyState">No Sarvam key saved — English dictation still works via Groq.</div>
+  </div>
+
+  <div class="hint">Global shortcut: Ctrl+Shift+D &nbsp;·&nbsp; Your keys never leave this computer.</div>
+
+<script src="doctor.js"></script>
+</body>
+</html>
