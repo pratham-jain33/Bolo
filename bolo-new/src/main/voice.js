@@ -39,6 +39,12 @@ let handsFree = false;
 // plain voice path / wake word, which still infers the intent.
 let sessionMode = null;
 
+// Doctor Mode sessions are flagged the same way: set when the session starts
+// (from the doctor window or its shortcut), read when it stops. A doctor
+// session skips the router and the injector entirely — the transcript goes
+// back to the doctor window for templating, and the doctor pastes the note.
+let sessionDoctor = false;
+
 // A critical action (send an email, create or delete a calendar event, overwrite
 // a file) is not run on the spoken command alone. It is staged here and only
 // carried out once the user confirms — by clicking Confirm on the notch, or by
@@ -180,7 +186,11 @@ function sttMessage(result) {
 async function transcribeWithProvider(clip) {
   const groqOpts = { mime: clip.mime, language: settings.get('defaultLanguage') };
   const pref = settings.get('sttProvider') || 'groq';
-  const wantSarvam = pref === 'sarvam' || (pref === 'auto' && keys.has('sarvam'));
+  // Doctor sessions prefer Sarvam (Hindi/Hinglish) whenever a key exists; the
+  // explicit setting and 'auto' behave as before.
+  const wantSarvam = pref === 'sarvam'
+    || (sessionDoctor && keys.has('sarvam'))
+    || (pref === 'auto' && keys.has('sarvam'));
   if (!wantSarvam) return stt.transcribe(clip.buffer, groqOpts);
 
   const r = await sttSarvam.transcribe(clip.buffer, {
@@ -190,7 +200,7 @@ async function transcribeWithProvider(clip) {
   });
   if (r.ok) return r;
   if (r.error === 'too-long') return stt.transcribe(clip.buffer, groqOpts);
-  if (r.error === 'no-keys' && pref === 'auto') return stt.transcribe(clip.buffer, groqOpts);
+  if (r.error === 'no-keys' && (pref === 'auto' || sessionDoctor)) return stt.transcribe(clip.buffer, groqOpts);
   return r;
 }
 
@@ -328,7 +338,7 @@ async function decide(transcript, emit, mode) {
   return decision;
 }
 
-async function toggle({ broadcast, handsFree: hf, mode } = {}) {
+async function toggle({ broadcast, handsFree: hf, mode, doctor } = {}) {
   const emit = (ch, payload) => {
     if (typeof broadcast === 'function') broadcast(ch, payload);
   };
@@ -383,6 +393,25 @@ async function toggle({ broadcast, handsFree: hf, mode } = {}) {
 
       lastTranscript = transcript;
       emit('bolo:transcript', transcript);
+
+      if (sessionDoctor) {
+        // Doctor Mode: the transcript goes back to the doctor window for
+        // templating. No router, no injection — the doctor reviews the note
+        // and pastes it when it is right.
+        if (settings.get('audioDucking')) duck.setDucked(false);
+        state = 'idle';
+        handsFree = false;
+        sessionMode = null;
+        sessionDoctor = false;
+        emit('bolo:voice-state', getState());
+        emit('bolo:notch', { phase: 'idle' });
+        emit('bolo:doctor-result', {
+          text: transcript.text || '',
+          mode: transcript.mode || null,
+          languageCode: transcript.languageCode || null
+        });
+        return { ...getState(), transcript, doctor: true };
+      }
 
       if (transcript.text && pending) {
         // A critical action is awaiting confirmation, so this utterance is the
@@ -565,6 +594,7 @@ async function toggle({ broadcast, handsFree: hf, mode } = {}) {
     state = 'idle';
     handsFree = false; // the session is over; the flag doesn't outlive it
     sessionMode = null; // and neither does the mode it began in
+    sessionDoctor = false; // nor the doctor flag
     emit('bolo:voice-state', getState());
     return { ...getState(), clip: await clip, transcript, injected, decision, acted };
   }
@@ -581,15 +611,19 @@ async function toggle({ broadcast, handsFree: hf, mode } = {}) {
   // session stops. Defaults to null (the inferring path) for the wake word and
   // the voice-toggle IPC.
   sessionMode = mode || null;
+  // Doctor Mode sessions always record a WAV alongside the webm, because the
+  // Sarvam path they prefer chunks long dictations past its ~30s limit.
+  sessionDoctor = !!doctor;
   if (settings.get('audioDucking')) duck.setDucked(true);
   state = 'listening';
   emit('bolo:voice-state', getState());
 
-  const started = await audio.start();
+  const started = await audio.start({ wav16k: sessionDoctor });
   if (!started.ok) {
     state = 'idle';
     handsFree = false;
     sessionMode = null;
+    sessionDoctor = false;
     if (settings.get('audioDucking')) duck.setDucked(false);
     emit('bolo:voice-state', getState());
     emit('bolo:notch', { phase: 'error', text: micMessage(started) });
