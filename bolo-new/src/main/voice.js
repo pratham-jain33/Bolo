@@ -7,6 +7,8 @@ const intent = require('./intent');
 const context = require('./context');
 const history = require('./history');
 const stt = require('./stt');
+const sttSarvam = require('./stt_sarvam');
+const keys = require('./keys');
 const agent = require('./agent');
 
 // Voice state machine: idle -> listening -> routing -> idle.
@@ -159,12 +161,37 @@ function micMessage(result) {
 // notch ever says is "failed".
 function sttMessage(result) {
   const err = String((result && result.error) || '');
-  if (err === 'no-keys') return 'No Groq key — add one in Settings';
+  const provider = result && result.mode === 'sarvam-saaras' ? 'Sarvam' : 'Groq';
+  if (err === 'no-keys') return 'No ' + provider + ' key — add one in Settings';
   if (err === 'timeout') return 'Transcription timed out';
-  if (err.startsWith('http-401') || err.startsWith('http-403')) return 'Groq rejected the key';
-  if (err.startsWith('http-429')) return 'Rate limited — every Groq key is cooling down';
+  if (err.startsWith('http-401') || err.startsWith('http-403')) return provider + ' rejected the key';
+  if (err.startsWith('http-429')) return 'Rate limited — every ' + provider + ' key is cooling down';
   if (err.startsWith('http-')) return 'Transcription failed (' + err.split(':')[0] + ')';
   return 'Transcription failed';
+}
+
+// Provider routing for transcription. Groq Whisper stays the default and the
+// English path; Sarvam Saaras is used when the setting says so, or in 'auto'
+// when a Sarvam key exists. A clip Sarvam cannot take — a webm longer than its
+// ~30s per-request limit with no WAV to split — falls back to Groq rather than
+// failing the dictation, because a Whisper transcript of a long note beats no
+// transcript. An explicit 'sarvam' choice with no key is surfaced, not
+// silently swapped, so the missing key is discoverable in Settings.
+async function transcribeWithProvider(clip) {
+  const groqOpts = { mime: clip.mime, language: settings.get('defaultLanguage') };
+  const pref = settings.get('sttProvider') || 'groq';
+  const wantSarvam = pref === 'sarvam' || (pref === 'auto' && keys.has('sarvam'));
+  if (!wantSarvam) return stt.transcribe(clip.buffer, groqOpts);
+
+  const r = await sttSarvam.transcribe(clip.buffer, {
+    mime: clip.mime,
+    ms: clip.ms,
+    wav16k: clip.wav16k
+  });
+  if (r.ok) return r;
+  if (r.error === 'too-long') return stt.transcribe(clip.buffer, groqOpts);
+  if (r.error === 'no-keys' && pref === 'auto') return stt.transcribe(clip.buffer, groqOpts);
+  return r;
 }
 
 // Stop the microphone and turn what it heard into text.
@@ -174,8 +201,9 @@ function sttMessage(result) {
 // guard skip the router — and the notch has already been told what went wrong,
 // so nothing fails silently.
 //
-// There used to be a local stub echo here. The real call is stt.js, against
-// Groq's whisper-large-v3-turbo.
+// There used to be a local stub echo here. The real call is transcribeWithProvider
+// above: Groq's whisper-large-v3-turbo by default, Sarvam's Saaras when the
+// sttProvider setting (or a doctor session) asks for it.
 async function transcribe(emit, clipPromise) {
   const clip = await clipPromise;
 
@@ -184,10 +212,7 @@ async function transcribe(emit, clipPromise) {
     return { text: '', mode: 'no-audio', error: clip.error || 'empty-audio', bytes: 0 };
   }
 
-  const r = await stt.transcribe(clip.buffer, {
-    mime: clip.mime,
-    language: settings.get('defaultLanguage')
-  });
+  const r = await transcribeWithProvider(clip);
 
   if (!r.ok) {
     emit('bolo:notch', { phase: 'error', text: sttMessage(r) });
