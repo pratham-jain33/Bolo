@@ -65,6 +65,11 @@ let chunks = [];
 let recording = false;
 let recordStartedAt = 0;
 let recordMime = '';
+// When main asks for it (doctor sessions), the stop handler also produces a
+// 16kHz mono WAV alongside the webm — the shape Sarvam's Saaras needs for
+// chunking dictations past its ~30s per-request limit. Off by default: the
+// decode costs CPU the consumer path never needs.
+let wantWav16k = false;
 
 let levelTimer = null;
 let idleTimer = null;
@@ -288,6 +293,57 @@ function stopLevelLoop() {
 }
 
 /* ---------------------------------------------------------------------------
+   WAV 16kHz mono, for Sarvam
+   ------------------------------------------------------------------------ */
+// Decode the recorded webm and resample it to 16kHz mono 16-bit PCM WAV — the
+// shape Sarvam's Saaras chunks best. Runs in this renderer because only a
+// renderer has an audio decoder; main has none. The 44-byte header is standard
+// PCM, which is what stt_sarvam's splitter expects.
+async function webmToWav16k(arrayBuffer) {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) throw new Error('no AudioContext');
+  const TARGET_RATE = 16000;
+  const ctx = new AC();
+  try {
+    // decodeAudioData detaches the buffer it is given; the webm still has to
+    // go to main afterwards, so decode a copy.
+    const audioBuf = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    const frames = Math.max(1, Math.ceil(audioBuf.duration * TARGET_RATE));
+    const off = new OfflineAudioContext(1, frames, TARGET_RATE);
+    const src = off.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(off.destination);
+    src.start(0);
+    const rendered = await off.startRendering();
+    const data = rendered.getChannelData(0);
+
+    const wav = new ArrayBuffer(44 + data.length * 2);
+    const v = new DataView(wav);
+    const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    v.setUint32(4, 36 + data.length * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    v.setUint32(16, 16, true); // PCM subchunk size
+    v.setUint16(20, 1, true); // PCM format
+    v.setUint16(22, 1, true); // mono
+    v.setUint32(24, TARGET_RATE, true);
+    v.setUint32(28, TARGET_RATE * 2, true); // byte rate
+    v.setUint16(32, 2, true); // block align
+    v.setUint16(34, 16, true); // bits per sample
+    writeStr(36, 'data');
+    v.setUint32(40, data.length * 2, true);
+    for (let i = 0; i < data.length; i++) {
+      const s = Math.max(-1, Math.min(1, data[i]));
+      v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return wav;
+  } finally {
+    try { ctx.close(); } catch (_) {}
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Recording
    ------------------------------------------------------------------------ */
 function startRecording() {
@@ -334,9 +390,18 @@ function startRecording() {
       return;
     }
 
+    // The WAV is best-effort: if the decode fails the webm still goes, and the
+    // Sarvam path falls back to Groq for the over-long clip rather than losing
+    // the dictation.
+    let wav16k = null;
+    if (wantWav16k && buffer) {
+      try { wav16k = await webmToWav16k(buffer); } catch (e) { wav16k = null; }
+    }
+    wantWav16k = false;
+
     try {
       if (bolo && bolo.captureDone) {
-        bolo.captureDone({ ok: true, buffer, mime: type, ms, bytes: buffer.byteLength });
+        bolo.captureDone({ ok: true, buffer, mime: type, ms, bytes: buffer.byteLength, wav16k });
       }
     } catch (e) {
       fail('deliver', e);
@@ -466,6 +531,7 @@ if (bolo && bolo.on) {
   // captureState (started, or why not).
   bolo.on('bolo:capture-start', async (payload) => {
     const opts = payload || {};
+    wantWav16k = !!opts.wav16k;
     try {
       if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
       fellBackFrom = '';
