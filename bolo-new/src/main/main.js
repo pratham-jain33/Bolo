@@ -721,7 +721,7 @@ ipcMain.handle('bolo:get-usage', async () => ({
 /* ---------------------------------------------------------------------------
    Voice
    ------------------------------------------------------------------------ */
-ipcMain.handle('bolo:voice-toggle', async () => triggerVoice());
+ipcMain.handle('bolo:voice-toggle', async (_e, p) => triggerVoice({ mode: p && p.mode }));
 ipcMain.handle('bolo:voice-state', async () => voice.getState());
 ipcMain.handle('bolo:paste-last', async () => pasteLast());
 
