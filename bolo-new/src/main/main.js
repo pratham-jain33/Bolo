@@ -1222,6 +1222,12 @@ ipcMain.handle('bolo:set-stt-model', async (_e, model) => {
   settings.set('sttModel', String(model || stt.DEFAULT_MODEL));
   return { model: settings.get('sttModel') };
 });
+ipcMain.handle('bolo:set-stt-provider', async (_e, provider) => {
+  const p = String(provider || '').toLowerCase();
+  const valid = ['groq', 'sarvam', 'auto'].includes(p) ? p : 'groq';
+  settings.set('sttProvider', valid);
+  return { provider: valid };
+});
 ipcMain.handle('bolo:set-tts-voice', async (_e, voice) => {
   const id = String(voice || '');
   // Validated against the catalogue rather than stored blindly: an id Deepgram
