@@ -10,7 +10,8 @@ const $ = (id) => document.getElementById(id);
 const micBtn = $('micBtn');
 const statusEl = $('status');
 const transcriptEl = $('transcript');
-const pasteBtn = $('pasteBtn');
+const saveBtn = $('saveBtn');
+const printBtn = $('printBtn');
 const copyBtn = $('copyBtn');
 const sarvamKey = $('sarvamKey');
 const keyState = $('keyState');
@@ -44,19 +45,34 @@ function buildTemplate() {
     const input = f.multiline ? document.createElement('textarea') : document.createElement('input');
     input.className = 'tfield' + (f.multiline ? ' tarea' : '');
     input.placeholder = '—';
+    // Typing by hand also unlocks the three output buttons.
+    input.addEventListener('input', refreshButtons);
     mount.appendChild(lab);
     mount.appendChild(input);
     fieldEls[f.key] = input;
   }
 }
 
-// The pasted shape: fixed labels, fixed order, every field present even when
-// empty, so the clinic software always sees the same note.
+// The note shape: fixed labels, fixed order, every field present even when
+// empty, so the saved file always looks the same.
 function formattedNote() {
   return TEMPLATE.map((f) => {
     const el = fieldEls[f.key];
     return f.label + ': ' + (el ? el.value.trim() : '');
   }).join('\n');
+}
+
+// The three output buttons unlock on the note, not on the raw transcript:
+// once any field has content, Copy/Save/Print are all live.
+function noteHasContent() {
+  return TEMPLATE.some((f) => fieldEls[f.key] && fieldEls[f.key].value.trim());
+}
+
+function refreshButtons() {
+  const has = noteHasContent();
+  copyBtn.disabled = !has;
+  saveBtn.disabled = !has;
+  printBtn.disabled = !has;
 }
 
 function clearTemplate() {
@@ -73,13 +89,14 @@ function setTranscript(text) {
   transcriptEl.value = text || '';
   const has = !!(text && text.trim());
   copyBtn.disabled = !has;
-  // Paste unlocks once the template has fields, not on the raw transcript.
-  if (!has) pasteBtn.disabled = true;
+  // Save/Print unlock once the template has fields, not on the raw transcript.
+  if (!has) { saveBtn.disabled = true; printBtn.disabled = true; }
 }
 
 async function structureIntoTemplate(text) {
   structuring = true;
-  pasteBtn.disabled = true;
+  saveBtn.disabled = true;
+  printBtn.disabled = true;
   setStatus('Organizing into the patient note…', false);
   try {
     const r = await bolo.doctorStructure(text);
@@ -87,11 +104,11 @@ async function structureIntoTemplate(text) {
     for (const f of TEMPLATE) {
       if (fieldEls[f.key]) fieldEls[f.key].value = fields[f.key] || '';
     }
-    pasteBtn.disabled = false;
-    setStatus('Ready. Check the note, fix anything, then paste.', false);
+    refreshButtons();
+    setStatus('Ready. Check the note, fix anything, then copy, save, or print.', false);
   } catch (e) {
     // The transcript box still holds the words; the note just did not split.
-    setStatus('Ready. The note did not split into fields — paste from the transcript box.', false);
+    setStatus('Ready. The note did not split into fields — copy from the transcript box.', false);
   } finally {
     structuring = false;
   }
@@ -116,40 +133,55 @@ async function toggle() {
 
 micBtn.onclick = toggle;
 
-pasteBtn.onclick = async () => {
-  // Paste the reviewed template, not the raw transcript — the fields are what
-  // the doctor corrected.
-  const text = formattedNote();
-  if (!TEMPLATE.some((f) => fieldEls[f.key] && fieldEls[f.key].value.trim())) {
-    setStatus('The note is empty — dictate first.', false);
-    return;
-  }
-  pasteBtn.disabled = true;
-  setStatus('Pasting…', false);
-  try {
-    const r = await bolo.doctorPaste(text);
-    if (r && r.ok) {
-      if (r.systemWide === false || r.focusError) {
-        setStatus('On your clipboard — click into your clinic software and press Ctrl+V.', false);
-      } else {
-        setStatus('Pasted.', false);
-      }
-    } else {
-      setStatus('Paste failed: ' + ((r && r.error) || 'unknown') + ' — the note is still above, copy it by hand.', false);
-    }
-  } catch (e) {
-    setStatus('Paste failed — the note is still above, copy it by hand.', false);
-  } finally {
-    pasteBtn.disabled = false;
-  }
-};
-
 copyBtn.onclick = async () => {
   const text = formattedNote();
   if (!text.trim()) return;
-  try { await navigator.clipboard.writeText(text); } catch (_) {}
-  setStatus('Copied to clipboard.', false);
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus('Copied.', false);
+  } catch (_) {
+    setStatus('Copy failed — select the note and copy it by hand.', false);
+  }
 };
+
+saveBtn.onclick = async () => {
+  if (!noteHasContent()) { setStatus('The note is empty — dictate first.', false); return; }
+  saveBtn.disabled = true;
+  setStatus('Saving…', false);
+  try {
+    const r = await bolo.doctorSave(currentFields());
+    if (r && r.ok) setStatus('Saved: ' + r.filename, false);
+    else setStatus('Save failed: ' + ((r && r.error) || 'unknown'), false);
+  } catch (e) {
+    setStatus('Save failed.', false);
+  } finally {
+    refreshButtons();
+  }
+};
+
+printBtn.onclick = async () => {
+  if (!noteHasContent()) { setStatus('The note is empty — dictate first.', false); return; }
+  printBtn.disabled = true;
+  setStatus('Opening the print dialog…', false);
+  try {
+    const r = await bolo.doctorPrint(currentFields());
+    if (r && r.ok) setStatus('Sent to the printer.', false);
+    else if (r && r.error === 'cancelled') setStatus('Print cancelled.', false);
+    else setStatus('Print failed: ' + ((r && r.error) || 'unknown'), false);
+  } catch (e) {
+    setStatus('Print failed.', false);
+  } finally {
+    refreshButtons();
+  }
+};
+
+// The note fields: fixed labels, fixed order — Copy/Save/Print all use these,
+// so the reviewed values are what leave the window.
+function currentFields() {
+  const out = {};
+  for (const f of TEMPLATE) out[f.key] = fieldEls[f.key] ? fieldEls[f.key].value.trim() : '';
+  return out;
+}
 
 $('keySave').onclick = async () => {
   const k = sarvamKey.value.trim();
