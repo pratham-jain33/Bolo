@@ -407,6 +407,15 @@ async function toggle({ broadcast, handsFree: hf, mode, doctor } = {}) {
         emit('bolo:notch', { phase: 'idle' });
         emit('bolo:doctor-result', {
           text: transcript.text || '',
+          error: transcript.error || null,
+          // The notch is not visible in Doctor Mode, so the failure reason has
+          // to travel with the result — a bad key must never look like
+          // "heard nothing", or the doctor will just keep re-dictating.
+          message: transcript.text
+            ? null
+            : (transcript.mode === 'no-audio'
+                ? 'Heard nothing — try again, a little louder.'
+                : sttMessage(transcript)),
           mode: transcript.mode || null,
           languageCode: transcript.languageCode || null
         });
