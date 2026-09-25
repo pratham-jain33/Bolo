@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!-- Matches the other windows. Nothing here needs relaxing: getUserMedia and
+       MediaRecorder are not CSP-governed, and the clip is handed to main as an
+       ArrayBuffer over IPC rather than fetch()ed from a blob: URL, which would
+       have needed `connect-src blob:`. -->
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self'"
+  />
+  <title>bolo capture</title>
+</head>
+<body>
+  <!-- Never shown. This window exists only to hold a microphone stream for the
+       life of the app, because neither the notch (hidden most of the time) nor
+       the dashboard (may be closed to tray) can be relied on to be alive.
+
+       The mic itself is only open while something needs it: during a dictation
+       session, or around the clock while the wake word is on. Between those it
+       is released, so the OS microphone indicator is off whenever the app is
+       merely sitting in the tray. -->
+  <!-- First, and in its own file — see diag.js. A parse error below this line
+       is otherwise silent, and a dead capture window looks exactly like a
+       microphone that never turns on. -->
+  <script src="./diag.js"></script>
+  <script src="./capture.js"></script>
+</body>
+</html>

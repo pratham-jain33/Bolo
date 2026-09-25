@@ -1,0 +1,71 @@
+launch subagents for 1) full rebrand. all prompts. all voice. logos. text. from goated os to "bolo". (ai's name is also bolo) 2), 3) and 4)
+### Full feature list
+
+**Dictation Mode**
+
+- System-wide dictation in any standard text field
+- Automatic filler-word removal, punctuation, and grammar fixes
+- Context-aware formatting per app (email vs chat vs notes)
+- Three polish styles: Raw, Light, or Polished
+- Custom dictionary ("Spelling") with AI-assisted bulk import of names and terms\
+- Hands-free dictation: double-tap your dictation key and tap once more to end it. You can also pick your own keys, and mouse buttons work as triggers
+- Hallucination filtering, so it strips known false transcript phrases
+- Recovers from microphone glitches and keeps the mic warm between recordings, so your first words aren't clipped
+- Lowers other audio (ducking) while you speak instead of muting it
+
+**Edit Mode**
+
+- Select text and describe the change you want (shorten, change tone, make a list)
+
+**Agent Mode**
+
+- Screen-aware questions: ask about whatever is on your screen
+- Web search, with answers that can include image previews, maps, stocks, charts, and YouTube cards
+- Draw or circle on screen with your cursor while talking to show it what you mean
+- Attach or paste images and files, and drag things into the notch
+- Confirmation cards before any action that sends or changes something
+- Spoken replies with adjustable voice speed and a true mute
+- Long tasks run in the background and report back when done
+- Natural-language reminders and scheduled or recurring actions
+- Double-tap the Agent key to keep talking hands-free
+- Conversation history with follow-ups and memory (including lockable core preferences)
+
+**Integrations (App Store)**
+
+- Gmail, Google Calendar, Google Docs, Google Drive, Outlook (mail and calendar),
+- Claude Code and Codex integrations (beta)
+- Bring your own tools through MCP servers or custom integrations, and describe an app to have VoiceOS build it in Studio (shareable by link)
+
+**Other**
+
+- Insights tab (speaking speed, time saved, words dictated) and a shareable "Voice Type" card
+- Appearance settings (light, dark, system)
+
+### Animations and notch style
+
+**Notch style.** The changelog describes two notch surfaces:
+
+- **Top notch:** where Agent Mode lives. It expands to show your transcript immediately, streams answers in, and stays open until you click away. You can also hide it.
+- **Side notch:** a "liquid-glass" history view with click-to-open conversations, selected-session highlighting, and haptics. It's also where long-running background tasks show live activity, and it can be hidden when minimized.
+- Appearance settings offer **live previews for supported notch materials**, though I couldn't find the specific material names.
+- There's also a **"Show floating bar always"** option for when you want an indicator without the notch.
+
+**Animations mentioned in release notes:**
+
+- Answers **reveal word by word**, and spoken replies light up word by word in the notch
+- An **adaptive progress ring** that reflects the active transcription stage while dictation processes
+- A **thinking indicator** while the agent works
+- **Stacked previews** that animate and expand based on their contents
+- Smooth handoff between reminder card, side notch, and active conversation
+- Reminder cards that update in place and collapse into an expandable notification stack
+
+
+One more change that we need is that the Text to speech from Deep Gram should start playing as soon as the first word generated so we should wait for the whole thing to get generated the whole transcript get generated but we should just start playing the audio as it is being generated
+
+Default settings -
+1. Voice: aura 2 female delia
+2. Cancel: escape
+3. Dictation mode: Fn
+4. Edit mode: Ctrl + Fn
+5. Agent mode: Ctrl + alt
+Also when I press a specific shortcut a small icon type or something should show up in the notch that tells me which mode I am in.

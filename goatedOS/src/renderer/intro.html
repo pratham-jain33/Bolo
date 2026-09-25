@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self' blob:"
+  />
+  <title>bolo</title>
+  <!-- Loaded first so a parse error in any script below is still reported. -->
+  <script src="./diag.js"></script>
+  <link rel="stylesheet" href="./fonts.css" />
+  <link rel="stylesheet" href="./intro.css" />
+</head>
+<body>
+  <!-- The window is transparent: `.backdrop` is a blurred capture of the
+       desktop taken by the main process, and `.scrim` is what dims it. -->
+  <div class="backdrop" id="backdrop"><img id="backdropImg" alt="" /></div>
+  <div class="scrim" id="scrim"></div>
+  <div class="bloom"></div>
+
+  <div id="diag" class="diag" hidden></div>
+
+  <main class="stage">
+    <!-- Two narrated lines, stacked above the mark. -->
+    <div class="say" id="say" aria-live="polite">
+      <p class="line" id="line1"></p>
+      <p class="line" id="line2"></p>
+    </div>
+
+    <!-- The logotype, injected by wordmark.js. It holds while the first line is
+         spoken, then `.out` is added from intro.js in the seam before the
+         question — it is off screen before the name pills appear. -->
+    <div class="mark" id="mark"></div>
+
+    <!-- Step 1 — the gate. -->
+    <div class="gate" id="gate">
+      <button type="button" id="getStarted" class="pill">Get Started</button>
+    </div>
+
+    <!-- Step 2 — the name, captured in two glass pills laid over the mark. -->
+    <form class="askbar" id="askbar" autocomplete="off" novalidate>
+      <div class="fields">
+        <label class="field">
+          <span class="field-label">First name</span>
+          <input id="firstName" type="text" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span class="field-label">Last name</span>
+          <input id="lastName" type="text" autocomplete="off" spellcheck="false" />
+        </label>
+      </div>
+      <button type="submit" id="askGo" class="askgo" aria-label="Continue">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19.5V5.5M12 5.5L6.6 10.9M12 5.5l5.4 5.4" />
+        </svg>
+      </button>
+    </form>
+
+    <!-- Step 3 — language, answered out loud. The list is the fallback. -->
+    <div class="langs" id="langs" role="group" aria-label="Choose a language"></div>
+
+    <!-- Steps 4–10 — the rest of setup, hosted right here in the intro so the
+         whole first run is one continuous cinematic sequence. Each beat's
+         controls are built into #beat by intro.js; no cards, no rail, no
+         progress bar — just floating glass over the same scrim. -->
+    <div class="beat" id="beat" aria-live="polite"></div>
+    <div class="beatnav" id="beatnav">
+      <button type="button" id="beatBack" class="beatback" hidden aria-label="Back">Back</button>
+      <button type="button" id="beatGo" class="pill beatgo" disabled>Continue</button>
+    </div>
+  </main>
+
+  <button type="button" id="skip" class="skip">Skip intro</button>
+  <div class="fadeout" id="fadeout"></div>
+
+  <script src="./wordmark.js"></script>
+  <script src="./speak.js"></script>
+  <script src="./intro.js"></script>
+</body>
+</html>

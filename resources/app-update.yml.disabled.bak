@@ -1,0 +1,5 @@
+provider: s3
+bucket: voiceos-staging-releases
+path: releases/
+region: us-east-1
+updaterCacheDirName: voiceos-updater

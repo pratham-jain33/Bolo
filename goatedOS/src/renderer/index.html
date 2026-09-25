@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws:; media-src 'self' blob:"
+  />
+  <title>bolo</title>
+  <!-- diag.js must stay first: it is what reports a parse error in the scripts
+       below it, which would otherwise fail silently. -->
+  <script src="./diag.js"></script>
+  <script src="./boot.js"></script>
+  <link rel="stylesheet" href="./fonts.css" />
+  <link rel="stylesheet" href="./theme.css" />
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- Onboarding last: its `obp-` rules are the newest and most specific. -->
+  <link rel="stylesheet" href="./onboarding.css" />
+</head>
+<body>
+  <div class="window squircle">
+    <!-- Frameless chrome: the whole bar is the OS drag region. -->
+    <header class="titlebar" id="titlebar">
+      <span class="titlebar-title">bolo</span>
+      <span class="titlebar-spacer"></span>
+      <div class="window-controls" id="windowControls">
+        <button class="window-control" id="winMin" title="Minimize" aria-label="Minimize">
+          <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M2 6h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button class="window-control" id="winMax" title="Maximize" aria-label="Maximize">
+          <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <rect x="2.2" y="2.2" width="7.6" height="7.6" rx="1.6" stroke="currentColor" stroke-width="1.4" />
+          </svg>
+        </button>
+        <button class="window-control close" id="winClose" title="Close" aria-label="Close">
+          <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="app">
+      <aside class="side">
+        <!-- The real logotype, not the name set in the UI font: the sidebar is
+             where the brand is most visible, and the mark's filled disc before
+             the trailing "s" is the whole identity. Filled by app.js. -->
+        <div class="brand" id="brand"></div>
+
+        <nav id="nav">
+          <button class="nav active" data-view="voice">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="6" y="1.5" width="4" height="8" rx="2" stroke="currentColor" stroke-width="1.3" />
+              <path d="M3.5 7.5a4.5 4.5 0 009 0M8 12v2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+            </svg>
+            Voice
+          </button>
+          <button class="nav" data-view="history">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3" />
+              <path d="M8 4.6V8l2.4 1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+            </svg>
+            History
+          </button>
+          <button class="nav" data-view="customize">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M2.5 4.2h11M2.5 8h11M2.5 11.8h11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+              <circle cx="6" cy="4.2" r="1.7" fill="var(--background)" stroke="currentColor" stroke-width="1.3" />
+              <circle cx="10.4" cy="11.8" r="1.7" fill="var(--background)" stroke="currentColor" stroke-width="1.3" />
+            </svg>
+            Customize
+          </button>
+          <button class="nav" data-view="integrations">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="2" y="2" width="5" height="5" rx="1.6" stroke="currentColor" stroke-width="1.3" />
+              <rect x="9" y="2" width="5" height="5" rx="1.6" stroke="currentColor" stroke-width="1.3" />
+              <rect x="2" y="9" width="5" height="5" rx="1.6" stroke="currentColor" stroke-width="1.3" />
+              <rect x="9" y="9" width="5" height="5" rx="1.6" stroke="currentColor" stroke-width="1.3" />
+            </svg>
+            Integrations
+          </button>
+          <button class="nav" data-view="settings">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.3" />
+              <path d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1M12.4 12.4l-1.1-1.1M4.7 4.7L3.6 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+            </svg>
+            Settings
+          </button>
+        </nav>
+
+        <div class="side-foot">
+          <span id="pillMini" class="dot idle"></span>
+          <span id="voiceState">Idle</span>
+        </div>
+      </aside>
+
+      <main class="main scrollbar-transparent-track" id="main">
+        <!-- ── Voice ─────────────────────────────────────────────────── -->
+        <section id="view-voice" class="view active">
+          <header class="hero">
+            <h1>Voice</h1>
+            <p class="sub"><span id="voiceBlurbText">Press</span> <code id="hkHint">Ctrl + A</code><span id="voiceBlurbTail"> to start, and again to stop.</span></p>
+          </header>
+
+          <!-- There is no mode picker here any more. What the words were for is
+               read out of the words themselves, in the main process — see
+               src/main/intent.js — so there is nothing to choose before you
+               speak, which is the whole point of removing the modes. -->
+
+          <div class="pillwrap">
+            <button id="talkBtn" class="pill-large idle" aria-label="Start dictation">
+              <span class="core"></span>
+            </button>
+          </div>
+
+          <canvas id="wave" width="960" height="128"></canvas>
+
+          <!-- What the router made of the last utterance. It arrives after the
+               transcript does, so it annotates rather than replaces it. -->
+          <div class="transcript-head">
+            <span id="intentTag" class="intent-tag" hidden></span>
+          </div>
+          <div id="transcriptBox" class="transcript is-empty">Your transcript will appear here.</div>
+
+          <div class="row mt">
+            <button id="pasteLastBtn" class="btn">Paste last transcript</button>
+            <button id="ctxBtn" class="btn">Capture context</button>
+            <button id="shotBtn" class="btn">Screenshot</button>
+          </div>
+        </section>
+
+        <!-- ── History ───────────────────────────────────────────────── -->
+        <section id="view-history" class="view">
+          <header class="hero">
+            <h1>History</h1>
+            <p class="sub">Every session, stored locally.</p>
+          </header>
+          <div class="row">
+            <button id="histBtn" class="btn btn-sm">Refresh</button>
+            <button id="histClear" class="btn btn-sm btn-danger">Clear all</button>
+          </div>
+          <div id="histList" class="list mt"></div>
+        </section>
+
+        <!-- ── Customize ─────────────────────────────────────────────── -->
+        <section id="view-customize" class="view">
+          <header class="hero">
+            <h1>Customize</h1>
+            <p class="sub">Teach bolo your words.</p>
+          </header>
+
+          <div class="card">
+            <h3 class="card-title">Dictionary</h3>
+            <p class="card-desc">Add words for better recognition — names, jargon, product terms. The AI bulk-import is not wired up yet, so this is one word at a time.</p>
+            <div class="row mt">
+              <input id="dictInput" class="field" placeholder="Enter word…" style="flex:1;min-width:180px" />
+              <button id="dictAdd" class="btn btn-primary">Add word</button>
+            </div>
+            <div id="dictList" class="list mt"></div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Replacements</h3>
+            <p class="card-desc">Say one thing, get another. Applied after transcription, before the router sees the words — so a replacement can be what makes an utterance read as a command.</p>
+            <div class="row mt">
+              <input id="repFrom" class="field" placeholder="Say…" style="flex:1;min-width:140px" />
+              <span class="arrow" aria-hidden="true">→</span>
+              <input id="repTo" class="field" placeholder="Write…" style="flex:1;min-width:140px" />
+              <button id="repAdd" class="btn btn-primary">Add</button>
+            </div>
+            <div id="repList" class="list mt"></div>
+          </div>
+
+          <!-- Private mode and Context Awareness both live under Settings →
+               Context Awareness, where the reference puts them. Keeping a second
+               copy of either switch here would duplicate an element id. -->
+        </section>
+
+        <!-- ── Integrations Studio ───────────────────────────────────── -->
+        <section id="view-integrations" class="view">
+          <header class="hero">
+            <h1>Integrations</h1>
+            <p class="sub">Let bolo act in the apps you already use.</p>
+          </header>
+
+          <div class="row">
+            <input id="intSearch" class="field" placeholder="Search integrations…" style="flex:1;min-width:200px" />
+            <button id="intRefresh" class="btn btn-sm">Refresh status</button>
+          </div>
+
+          <div class="chips mt" id="intCats"></div>
+
+          <!-- Filled in by refreshIntegrations() when an integration needs setup
+               the user has to do outside the app (currently: Gmail's OAuth
+               client). Hidden the rest of the time. -->
+          <p id="intHint" class="hint mt" hidden></p>
+
+          <div id="intGrid" class="grid mt"></div>
+
+          <div id="intDetail" class="card mt" hidden></div>
+        </section>
+
+        <!-- ── Settings ────────────────────────────────────────────────
+             Sections in the reference's own order and naming: General ·
+             Audio & Speech · Visibility · Appearance · Notch appearance ·
+             Context Awareness · Extras. The bolo-only cards — the model
+             backend and the coding agents that used to have their own nav
+             entry — sit under Extras, which is the reference's catch-all. -->
+        <section id="view-settings" class="view">
+          <header class="hero">
+            <h1>Settings</h1>
+            <p class="sub">Your key, your audio, your notch, your model backend.</p>
+          </header>
+
+          <div class="card">
+            <h3 class="card-title">General</h3>
+            <p class="card-desc">One key for everything. Global shortcuts fire on press, so pressing it again stops and processes.</p>
+            <div id="voiceShortcuts" class="list mt"></div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Paste last transcript</div>
+                <div class="setting-desc">Re-insert the previous transcript without recording again — also the undo for a command that was read as dictation.</div>
+              </div>
+              <div class="row">
+                <input id="pasteLastInput" class="field" style="width:200px" />
+                <button id="pasteLastSave" class="btn btn-sm">Apply</button>
+              </div>
+            </div>
+            <div class="row mt">
+              <button id="shortcutReset" class="btn btn-sm">Reset to defaults</button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Launch at login</div>
+                <div class="setting-desc">Start with the system, so the key is live without opening anything.</div>
+              </div>
+              <button class="switch" id="loginToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Close to tray</div>
+                <div class="setting-desc">Closing the window keeps bolo running instead of quitting.</div>
+              </div>
+              <button class="switch" id="closeToTrayToggle" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Creator Mode badge</div>
+                <div class="setting-desc">Marks this install as a creator build.</div>
+              </div>
+              <button class="switch" id="creatorToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Practice mode</div>
+                <div class="setting-desc">Show what would have been typed, without typing it.</div>
+              </div>
+              <button class="switch" id="practiceToggle" role="switch" aria-checked="false"></button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Audio &amp; Speech</h3>
+            <p class="card-desc">How bolo listens and speaks.</p>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Microphone</div>
+                <div class="setting-desc" id="micBox">—</div>
+              </div>
+              <div class="row mic-row">
+                <select id="micSel" class="field" style="width:210px"></select>
+                <button id="micTest" class="btn btn-sm">Test mic</button>
+              </div>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Inbuilt transcription</div>
+                <div class="setting-desc">Turn off to let an external tool own speech-to-text.</div>
+              </div>
+              <button class="switch" id="transToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Lower media volume while talking</div>
+                <div class="setting-desc">Quiets music while you dictate, then restores it.</div>
+              </div>
+              <button class="switch" id="duckToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">System-wide auto-paste</div>
+                <div class="setting-desc">Paste the transcript into whatever app has focus.</div>
+              </div>
+              <button class="switch" id="injectToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Auto-paste answers</div>
+                <div class="setting-desc">When the router decides you asked a question, paste the answer too instead of only showing it in the notch.</div>
+              </div>
+              <button class="switch" id="autoPasteToggle" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Transcription model</div>
+                <div class="setting-desc" id="sttBox">—</div>
+              </div>
+              <div class="row">
+                <input id="sttInput" class="field" style="width:210px" />
+                <button id="sttSave" class="btn btn-sm">Save</button>
+                <button id="sttTest" class="btn btn-sm">Test transcription</button>
+              </div>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Interaction sounds</div>
+                <div class="setting-desc">The master switch for the app's own voice. It is the speaker button on the setup pages, surfaced here because it silences replies as well as the intro, and a reply that never speaks is otherwise indistinguishable from a broken one.</div>
+              </div>
+              <button class="switch" id="soundsToggle" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Speak replies aloud</div>
+                <div class="setting-desc">Read an answer back in the Deepgram voice instead of only showing it in the notch.</div>
+              </div>
+              <button class="switch" id="ttsToggle" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Voice</div>
+                <div class="setting-desc" id="ttsBox">—</div>
+              </div>
+              <div class="row">
+                <select id="ttsVoiceSel" class="field" style="width:210px"></select>
+                <button id="ttsTestBtn" class="btn btn-sm">Test voice</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Wake word</h3>
+            <p class="card-desc">
+              Start dictating by speaking instead of pressing a key. This keeps a
+              microphone gate running while the app is open.
+            </p>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Listen for a wake word</div>
+                <div class="setting-desc" id="wakeStatus">Off</div>
+              </div>
+              <button class="switch" id="wakeToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Phrase</div>
+                <div class="setting-desc">What you say to start listening.</div>
+              </div>
+              <input id="wakePhrase" class="field" style="width:200px" />
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Sensitivity</div>
+                <div class="setting-desc" id="wakeSensLabel">60%</div>
+              </div>
+              <input id="wakeSens" type="range" min="0" max="100" step="5" />
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Test the wake word</div>
+                <div class="setting-desc" id="wakeTestResult">Say the phrase now, without waiting for the gate.</div>
+              </div>
+              <button class="btn" id="wakeTest">Listen</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Visibility</h3>
+            <p class="card-desc">Each of these hides a whole surface. The two notch switches are per-variant, because wanting a top notch and no side notch is the normal case rather than an edge one.</p>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Hide the dictation pill</div>
+                <div class="setting-desc">The small floating indicator while you speak.</div>
+              </div>
+              <button class="switch" id="hidePillToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Hide the top notch</div>
+                <div class="setting-desc">Applies when the capsule is the top variant.</div>
+              </div>
+              <button class="switch" id="hideTopToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Hide the side notch</div>
+                <div class="setting-desc">Applies when the capsule is the side variant.</div>
+              </div>
+              <button class="switch" id="hideSideToggle" role="switch" aria-checked="false"></button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Appearance</h3>
+            <p class="card-desc">How bolo windows look.</p>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Theme</div>
+              </div>
+              <div class="segmented" id="themeSeg">
+                <button data-theme="light">Light</button>
+                <button data-theme="dark">Dark</button>
+                <button data-theme="auto">Auto</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Notch appearance</h3>
+            <p class="card-desc">Where the agent's capsule sits and how long it stays.</p>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Show the notch</div>
+                <div class="setting-desc">Hide it entirely if you only want the pill.</div>
+              </div>
+              <button class="switch" id="notchEnabled" role="switch" aria-checked="true"></button>
+            </div>
+            <!-- The reference's two axes for the capsule. They are independent:
+                 either shape, in either material. -->
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Top notch or side notch</div>
+                <div class="setting-desc">A top notch hangs from the top edge; a side notch sits vertically centred against one side.</div>
+              </div>
+              <div class="segmented" id="variantSeg">
+                <button data-value="top">Top notch</button>
+                <button data-value="side">Side notch</button>
+              </div>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Side</div>
+                <div class="setting-desc">Which edge a side notch hangs from. Only applies to the side notch.</div>
+              </div>
+              <div class="segmented" id="sideSeg">
+                <button data-value="right">Right</button>
+                <button data-value="left">Left</button>
+              </div>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Material</div>
+                <div class="setting-desc">Solid Black is fully opaque. Liquid Glass is translucent and edge-lit — worth knowing that a transparent Electron window has no desktop behind it to blur, so glass reads as smoked rather than frosted.</div>
+              </div>
+              <div class="segmented" id="materialSeg">
+                <button data-value="solid">Solid Black</button>
+                <button data-value="glass">Liquid Glass</button>
+              </div>
+            </div>
+            <div class="setting" id="notchPositionRow">
+              <div class="setting-text">
+                <div class="setting-label">Position</div>
+                <div class="setting-desc">Where it anchors on the display.</div>
+              </div>
+              <select id="notchPosition" class="field" style="width:170px">
+                <option value="top-center">Top centre</option>
+                <option value="top-left">Top left</option>
+                <option value="top-right">Top right</option>
+                <option value="bottom-center">Bottom centre</option>
+                <option value="center">Centre</option>
+              </select>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Width</div>
+                <div class="setting-desc" id="notchWidthLabel">260px</div>
+              </div>
+              <input id="notchWidth" type="range" min="180" max="640" step="10" />
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Nudge left / right</div>
+                <div class="setting-desc" id="notchOffsetXLabel">0px</div>
+              </div>
+              <input id="notchOffsetX" type="range" min="-600" max="600" step="4" />
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Nudge up / down</div>
+                <div class="setting-desc" id="notchOffsetYLabel">0px</div>
+              </div>
+              <input id="notchOffsetY" type="range" min="-400" max="400" step="4" />
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Opacity</div>
+                <div class="setting-desc" id="notchOpacityLabel">100%</div>
+              </div>
+              <input id="notchOpacity" type="range" min="15" max="100" step="5" />
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Collapse after a reply</div>
+                <div class="setting-desc" id="notchAutoHideLabel">4s</div>
+              </div>
+              <input id="notchAutoHide" type="range" min="0" max="20000" step="500" />
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Only while hovering</div>
+                <div class="setting-desc">Keep it hidden unless the pointer is over it.</div>
+              </div>
+              <button class="switch" id="notchShowOnHover" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Float above full-screen apps</div>
+              </div>
+              <button class="switch" id="notchAlwaysOnTop" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="row mt">
+              <button id="notchPreview" class="btn btn-sm">Preview notch</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Context Awareness</h3>
+            <p class="card-desc">What bolo may read from the app you are in, to spell names and to understand “this”.</p>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Read the focused context</div>
+                <div class="setting-desc">Lets the router tell “rewrite this” apart from a sentence that merely opens with “rewrite”. Off means an utterance is treated as plain dictation unless its words are unambiguous.</div>
+              </div>
+              <button class="switch" id="contextToggle" role="switch" aria-checked="true"></button>
+            </div>
+            <!-- What the agent may actually do on this machine. Three switches
+                 rather than one, because the three carry different risk: opening
+                 an app is visible and undoable, a screenshot changes nothing,
+                 and editing a file can overwrite someone's work. -->
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Open apps and files</div>
+                <div class="setting-desc">Lets a spoken command launch an application, open a file or folder, or open a link. Off means bolo says it is not allowed instead of trying.</div>
+              </div>
+              <button class="switch" id="agentAppsToggle" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Take screenshots</div>
+                <div class="setting-desc">Lets you ask for a picture of the screen. Nothing is captured unless you ask for it.</div>
+              </div>
+              <button class="switch" id="agentShotToggle" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Edit files</div>
+                <div class="setting-desc">Lets a spoken command read, create or change a file inside your home folder. Off by default: it can overwrite your work, and anything that would overwrite an existing file is refused rather than guessed at. Paths outside your home folder are always refused.</div>
+              </div>
+              <button class="switch" id="agentFilesToggle" role="switch" aria-checked="false"></button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Private mode</div>
+                <div class="setting-desc">Nothing you dictate is stored or used for training.</div>
+              </div>
+              <button class="switch" id="privateToggle" role="switch" aria-checked="false"></button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Extras</h3>
+            <p class="card-desc">The parts that are bolo rather than the reference: your own model backend, local coding CLIs, and the two replay switches.</p>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Model</div>
+                <div class="setting-desc" id="groqBox">—</div>
+              </div>
+              <div class="row">
+                <input id="modelInput" class="field" style="width:210px" />
+                <button id="modelSave" class="btn btn-sm">Save</button>
+                <button id="groqTest" class="btn btn-sm">Test model</button>
+              </div>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">API keys</div>
+                <div class="setting-desc">Bring your own key. Keys never leave the main process, and rotate automatically when one is rate limited. Groq does transcription and the model; Deepgram does the voice. The provider selected here is the one Add, Rotate and Clear act on.</div>
+              </div>
+            </div>
+            <!-- Full width rather than in the setting's control column: the three
+                 controls do not fit beside that much prose, and wrapping them put
+                 the provider selector on a line of its own. -->
+            <div class="row mt">
+              <select id="keyProvider" class="field" style="width:130px">
+                <option value="groq">Groq</option>
+                <option value="deepgram">Deepgram</option>
+              </select>
+              <input id="keyInput" type="password" class="field" placeholder="gsk_…" style="width:240px" />
+              <button id="keyAdd" class="btn btn-sm">Add</button>
+            </div>
+            <div id="keyList" class="list mt"></div>
+            <div class="row mt">
+              <button id="keyRotate" class="btn btn-sm">Rotate active key</button>
+              <button id="keyClear" class="btn btn-sm btn-danger">Clear this provider's keys</button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Coding agents</div>
+                <div class="setting-desc">Hand a prompt to a local CLI agent. Nothing is sent anywhere by bolo itself; the CLIs use their own credentials.</div>
+              </div>
+            </div>
+            <div class="row mt">
+              <input id="codePrompt" class="field" placeholder="Prompt for Claude Code or Codex…" style="flex:1;min-width:200px" />
+              <button id="claudeBtn" class="btn">Claude</button>
+              <button id="codexBtn" class="btn">Codex</button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Available intents</div>
+                <div class="setting-desc">What the agent can be asked to do, and a demo workflow you can run.</div>
+              </div>
+            </div>
+            <div class="row mt">
+              <button id="agentListBtn" class="btn btn-sm">List intents</button>
+              <button id="wfBtn" class="btn btn-sm">Run demo workflow</button>
+            </div>
+            <div id="agentBox" class="list mt"></div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Replay the intro</div>
+                <div class="setting-desc">Run the cinematic opening again.</div>
+              </div>
+              <button id="introReplay" class="btn btn-sm">Replay intro</button>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Restart onboarding</div>
+                <div class="setting-desc">Wipes every setting back to its default and starts the setup flow again. API keys are kept. bolo restarts.</div>
+              </div>
+              <button id="obRestart" class="btn btn-sm">Restart</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Plan</h3>
+            <p class="card-desc" id="statusBox">—</p>
+            <p class="card-desc" id="usageBox">—</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- ── Onboarding ────────────────────────────────────────────────────
+       A full-window page rather than a modal: the reference's setup flow
+       replaces the app entirely, with its own progress bar near the top and
+       Back / Continue at the bottom corners. -->
+  <div id="obOverlay" class="obp" hidden>
+    <div class="obp-progress"><div id="obBar" class="obp-bar"></div></div>
+
+    <div class="obp-page">
+      <div class="obp-split" id="obSplit">
+        <div class="obp-col">
+          <h1 class="obp-title" id="obTitle"></h1>
+          <p class="obp-sub" id="obSub" hidden></p>
+          <div id="obStep" class="obp-body"></div>
+        </div>
+        <div class="obp-aside" id="obAside"></div>
+      </div>
+    </div>
+
+    <button type="button" class="obp-back" id="obBack">Back</button>
+
+    <div class="obp-actions">
+      <button type="button" class="obp-link" id="obSkip">Skip for now</button>
+      <button type="button" class="obp-next" id="obNext">Continue</button>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+
+  <!-- Populated by diag.js only when something has already gone wrong. -->
+  <div id="diag" class="diag" hidden></div>
+
+  <!-- Shared, and loaded before app.js because it reads window.BoloKeys at
+       module scope. Both are plain scripts rather than modules so they work
+       without nodeIntegration, under a CSP that allows only 'self'. -->
+  <script src="../shared/keylabel.js"></script>
+  <script src="./wordmark.js"></script>
+  <script src="./speak.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

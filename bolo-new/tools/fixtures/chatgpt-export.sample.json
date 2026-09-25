@@ -1,0 +1,206 @@
+[
+  {
+    "id": "conv-a",
+    "title": "Kubernetes ingress debugging",
+    "create_time": 1735689600,
+    "update_time": 1735689608,
+    "current_node": "u5",
+    "mapping": {
+      "sys": {
+        "id": "sys",
+        "message": {
+          "id": "sys",
+          "author": { "role": "system", "name": null, "metadata": {} },
+          "create_time": 1735689600,
+          "content": { "content_type": "text", "parts": ["You are ChatGPT, a large language model trained by OpenAI."] },
+          "metadata": {}
+        },
+        "parent": null,
+        "children": ["u1"]
+      },
+      "u1": {
+        "id": "u1",
+        "message": {
+          "id": "u1",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735689601,
+          "content": { "content_type": "text", "parts": ["Always answer with the YAML first, then explain what changed."] },
+          "metadata": {}
+        },
+        "parent": "sys",
+        "children": ["a1"]
+      },
+      "a1": {
+        "id": "a1",
+        "message": {
+          "id": "a1",
+          "author": { "role": "assistant", "name": null, "metadata": { "model_slug": "gpt-4o" } },
+          "create_time": 1735689602,
+          "content": { "content_type": "text", "parts": ["Always happy to help with kubernetes ingress."] },
+          "metadata": {}
+        },
+        "parent": "u1",
+        "children": ["u2"]
+      },
+      "u2": {
+        "id": "u2",
+        "message": {
+          "id": "u2",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735689603,
+          "content": {
+            "content_type": "multimodal_text",
+            "parts": [
+              "Here is the ingress manifest I have:",
+              { "content_type": "image_asset_pointer", "asset_pointer": "file-service://file-abc123", "width": 1024, "height": 768 },
+              "and the 502 is only on the kubernetes path."
+            ]
+          },
+          "metadata": {}
+        },
+        "parent": "a1",
+        "children": ["a2"]
+      },
+      "broken": null,
+      "stub": { "id": "stub" },
+      "u3": {
+        "id": "u3",
+        "message": {
+          "id": "u3",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735689604,
+          "content": { "content_type": "text", "parts": [""] },
+          "metadata": {}
+        },
+        "parent": "u2",
+        "children": []
+      },
+      "u4": {
+        "id": "u4",
+        "message": {
+          "id": "u4",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735689605,
+          "content": { "content_type": "text" },
+          "metadata": {}
+        },
+        "parent": "u2",
+        "children": []
+      },
+      "t1": {
+        "id": "t1",
+        "message": {
+          "id": "t1",
+          "author": { "role": "tool", "name": "python", "metadata": {} },
+          "create_time": 1735689606,
+          "content": { "content_type": "text", "parts": ["{\"status\": 200, \"latency_ms\": 41}"] },
+          "metadata": {}
+        },
+        "parent": "u2",
+        "children": []
+      },
+      "a2": {
+        "id": "a2",
+        "message": {
+          "id": "a2",
+          "author": { "role": "assistant", "name": null, "metadata": { "model_slug": "gpt-4o" } },
+          "create_time": 1735689607,
+          "content": { "content_type": "text", "parts": ["The kubernetes ingress controller is rewriting the path before it reaches the service."] },
+          "metadata": {}
+        },
+        "parent": "u2",
+        "children": ["u5"]
+      },
+      "u5": {
+        "id": "u5",
+        "message": {
+          "id": "u5",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735689608,
+          "content": { "content_type": "text", "parts": ["My name is Pratham and I prefer kubectl examples."] },
+          "metadata": {}
+        },
+        "parent": "a2",
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "conv-b",
+    "title": "Deploying to a cluster",
+    "create_time": 1735776000,
+    "update_time": 1735776100,
+    "current_node": "u2",
+    "mapping": {
+      "u1": {
+        "id": "u1",
+        "message": {
+          "id": "u1",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735776001,
+          "content": { "content_type": "text", "parts": ["From now on, run every kubernetes command through kubectl with a dry run first."] },
+          "metadata": {}
+        },
+        "parent": null,
+        "children": ["a1"]
+      },
+      "a1": {
+        "id": "a1",
+        "message": {
+          "id": "a1",
+          "author": { "role": "assistant", "name": null, "metadata": { "model_slug": "gpt-4o" } },
+          "create_time": 1735776002,
+          "content": { "content_type": "text", "parts": ["Understood — I will show the dry run first from here on."] },
+          "metadata": {}
+        },
+        "parent": "u1",
+        "children": ["u2"]
+      },
+      "u2": {
+        "id": "u2",
+        "message": {
+          "id": "u2",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735776003,
+          "content": { "content_type": "text", "parts": ["The kubernetes deployment keeps restarting and I cannot see why in the kubernetes dashboard."] },
+          "metadata": {}
+        },
+        "parent": "a1",
+        "children": []
+      }
+    }
+  },
+  {
+    "id": "conv-c",
+    "current_node": "a1",
+    "mapping": {
+      "u1": {
+        "id": "u1",
+        "message": {
+          "id": "u1",
+          "author": { "role": "user", "name": null, "metadata": {} },
+          "create_time": 1735862400,
+          "content": { "content_type": "text", "parts": ["What is the capital of Mongolia?"] },
+          "metadata": {}
+        },
+        "parent": null,
+        "children": ["a1"]
+      },
+      "a1": {
+        "id": "a1",
+        "message": {
+          "id": "a1",
+          "author": { "role": "assistant", "name": null, "metadata": { "model_slug": "gpt-4o" } },
+          "create_time": 1735862401,
+          "content": { "content_type": "text", "parts": ["Ulaanbaatar."] },
+          "metadata": {}
+        },
+        "parent": "u1",
+        "children": []
+      }
+    }
+  },
+  null,
+  "not a conversation",
+  {}
+]

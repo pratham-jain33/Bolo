@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'"
+  />
+  <title>bolo pill</title>
+  <link rel="stylesheet" href="./fonts.css" />
+  <style>
+    /* The dictation pill, re-authored from the reference recording.
+
+       bolo's pill is not a capsule and not a circle: it is a small
+       near-black tile carrying a VERTICAL mic-level meter and the live level
+       as a number beneath it. Measured off the stills at 1360x768 the tile is
+       65x138 with a ~10px corner radius, and the track inside it is 12px wide
+       and 78px tall, sitting 21px down from the tile's top edge.
+
+       The track has three parts, bottom to top:
+         - blue fill   (#0077dd) — the current level, rising from the floor
+         - white band  (#ffffff) — the peak marker, resting on top of the fill
+         - grey track  (#666666) — what is left above the peak
+       and the number below is the level as a percentage, in near-white.
+
+       Every one of those values is a measurement, not a preference. */
+
+    :root {
+      --tile-w: 65px;
+      --tile-h: 138px;
+      --tile-radius: 10px;
+      --track-w: 12px;
+      --track-h: 78px;
+      --track-top: 21px;
+      --peak-h: 10px;
+
+      --tile-bg: #141414;
+      --track-empty: #666666;
+      --level: #0077dd;
+      --peak: #ffffff;
+      --count: #eeeeee;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      font-family: 'Lexend', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    .pill {
+      position: relative;
+      width: var(--tile-w);
+      height: var(--tile-h);
+      border-radius: var(--tile-radius);
+      background: var(--tile-bg);
+      box-shadow: 0 6px 20px -6px #000000a6, 0 1px 0 #ffffff0f inset;
+      -webkit-app-region: drag;
+      cursor: default;
+      /* The tile grows in from its own top-left when it appears, which is the
+         corner it is anchored to on screen. */
+      transform-origin: top left;
+      animation: pill-in 0.26s cubic-bezier(0.25, 1, 0.5, 1) both;
+    }
+
+    @keyframes pill-in {
+      from { opacity: 0; transform: scale(0.9); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* The track is a fixed slot; everything inside it is measured from the
+       bottom, so the fill and the peak are both just a percentage of it. */
+    .track {
+      position: absolute;
+      left: 50%;
+      top: var(--track-top);
+      width: var(--track-w);
+      height: var(--track-h);
+      margin-left: calc(var(--track-w) / -2);
+      border-radius: 999px;
+      background: var(--track-empty);
+      overflow: hidden;
+      transition: background 0.3s ease;
+    }
+
+    /* Level fill — rises from the floor of the track. */
+    .fill {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 0%;
+      background: var(--level);
+      transition: height 0.08s linear, background 0.3s ease;
+    }
+
+    /* Peak marker — a short band that rests exactly on top of the fill and
+       falls back slowly, so a transient still reads a moment after it passes.
+       It is capped short of the track's top edge so it can never overflow. */
+    .peak {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: var(--peak-h);
+      bottom: 0%;
+      background: var(--peak);
+      transition: bottom 0.12s ease-out;
+    }
+
+    .count {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(var(--track-top) + var(--track-h) + 7px);
+      text-align: center;
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 20px;
+      letter-spacing: -0.01em;
+      color: var(--count);
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s ease;
+    }
+
+    /* ── Processing ──────────────────────────────────────────────────────
+       Nothing is being heard, so the meter stops being a meter: the track
+       dims and the number is replaced by a slow pulse. */
+    .pill.processing .track { background: #3a3a3a; }
+    .pill.processing .fill { background: #4a4a4a; }
+    .pill.processing .peak { opacity: 0; }
+    .pill.processing .count {
+      opacity: 0.55;
+      animation: breathe 1.5s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 0.3; }
+      50%      { opacity: 0.75; }
+    }
+
+    /* ── Error ───────────────────────────────────────────────────────────
+       The fill goes red and the tile shakes once, rather than looping. */
+    .pill.error .fill { background: var(--danger); }
+    .pill.error .count { color: var(--danger); }
+    .pill.error { animation: shake 0.4s ease-in-out both; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%      { transform: translateX(-4px); }
+      45%      { transform: translateX(4px); }
+      70%      { transform: translateX(-2px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="pill" class="pill idle">
+    <div class="track">
+      <div class="fill" id="fill"></div>
+      <div class="peak" id="peak"></div>
+    </div>
+    <div class="count" id="count">0</div>
+  </div>
+
+  <!-- First, and in its own file — see diag.js. A parse error below this line
+       is otherwise silent. -->
+  <script src="./diag.js"></script>
+  <script src="./pill.js"></script>
+</body>
+</html>

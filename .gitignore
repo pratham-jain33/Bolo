@@ -1,0 +1,18 @@
+# ── secrets: live API credentials ─────────────────────────────────────
+config.yaml
+**/seed-keys.js
+**/bolo-keys.json
+
+# ── build / runtime outputs ────────────────────────────────────────────
+node_modules/
+dist/
+out/
+*.log
+
+# ── editor / OS noise ──────────────────────────────────────────────────
+.vscode/
+.DS_Store
+Thumbs.db
+
+# nul is a Windows reserved device name — git cannot index it
+**/nul

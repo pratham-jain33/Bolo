@@ -1,0 +1,5 @@
+resources/app.asar.pre-patch.bak filter=lfs diff=lfs merge=lfs -text
+VoiceOS.exe filter=lfs diff=lfs merge=lfs -text
+resources/app.asar filter=lfs diff=lfs merge=lfs -text
+resources/app.asar.orig.bak filter=lfs diff=lfs merge=lfs -text
+resources/app.asar.pre-mock.bak filter=lfs diff=lfs merge=lfs -text

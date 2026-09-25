@@ -1,0 +1,726 @@
+/* ============================================================================
+   bolo — the cinematic intro.
+
+   Positioned from the centre of the viewport rather than the top, because the
+   window is sized to the work area and the sequence has to sit on the same
+   optical line whatever the screen. The reference's geometry, measured at
+   1360x768, maps to:
+
+     narration line 1 baseline   -113px from centre (cap-top -132)
+     narration line 2 baseline    -68px
+     logotype baseline            +43px
+     "Get Started" pill centre   +138px
+     name pills centre            +42px
+
+   The window is transparent, so `.backdrop` (a blurred capture of the desktop,
+   taken by the main process) plus `.scrim` are what the mark is sitting on.
+   ========================================================================== */
+
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --ink: #ffffff;
+  --accent: #0f6ef5;
+
+  /* Field geometry, straight off the reference: two 53px pills, 12 apart. */
+  --field-h: 53px;
+  --field-1: 254px;
+  --field-2: 256px;
+  --field-gap: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: Lexend, "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  cursor: default;
+  user-select: none;
+}
+
+body { color: var(--ink); }
+
+/* ---------------------------------------------------------------- backdrop */
+
+/* The desktop, captured by the main process before the window is shown and
+   painted back blurred. A transparent Electron window cannot blur what is
+   behind it — backdrop-filter only samples the page — so without this the
+   opening would dim a sharp desktop instead of a soft one. */
+.backdrop {
+  position: fixed;
+  inset: -60px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 700ms var(--ease-soft);
+  pointer-events: none;
+}
+.backdrop img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.backdrop.have { opacity: 1; }
+
+/* The dim is a single vertical ramp, not a flat overlay: measured transmission
+   against the reference wallpaper falls from ~0.41 at the top of the screen to
+   ~0.06 at the bottom. The tint carries a small blue lift — a pure black scrim
+   cannot produce the B channel the reference shows over its reddest wallpaper. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(1, 6, 19, 0.59) 0%, rgba(2, 4, 18, 0.94) 100%);
+  opacity: 0;
+  transition: opacity 620ms var(--ease-soft);
+}
+body.lit .scrim { opacity: 1; }
+
+/* The bloom the mark sits inside — the reference's glow is a cool blue, not a
+   neutral white. Slow and shallow: atmosphere, not animation competing for
+   attention. */
+.bloom {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 132vmin;
+  height: 60vmin;
+  transform: translate(-50%, -50%) scale(0.86);
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(closest-side,
+    rgba(150, 200, 255, 0.34), rgba(110, 170, 235, 0.13) 46%, rgba(90, 150, 220, 0) 74%);
+  filter: blur(30px);
+  transition: opacity 1200ms var(--ease-soft) 260ms, transform 1600ms var(--ease-out-expo) 260ms;
+}
+body.lit .bloom {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  animation: bloom-breathe 7s ease-in-out 1800ms infinite;
+}
+@keyframes bloom-breathe {
+  0%, 100% { opacity: 0.84; }
+  50%      { opacity: 1; }
+}
+
+/* ------------------------------------------------------------------- stage */
+
+.stage { position: fixed; inset: 0; display: block; }
+
+/* ---------------------------------------------------------------- logotype */
+
+.mark {
+  position: absolute;
+  left: 50%;
+  /* 9.90vh, not a round 10: the box is 153 units tall and the x-height band's
+     centre sits at model y 90, i.e. 58.8% down the box, so the element has to
+     start 16.83vh x 0.588 = 9.90vh above the centre line for the band's centre
+     to land *on* it — which is where the reference measures it. Measured off the
+     render: band centre y 383.2, band 84px, against the reference's 384.5 and
+     85px at 768. */
+  top: calc(50% - 9.9vh);
+  transform: translateX(-50%);
+  line-height: 0;
+  filter:
+    drop-shadow(0 0 22px rgba(120, 185, 245, 0.55))
+    drop-shadow(0 0 64px rgba(70, 140, 210, 0.40));
+  transition: opacity 640ms var(--ease-soft), transform 640ms var(--ease-out-expo);
+}
+
+/* The mark leaves between the intro's two lines — the first line is spoken over
+   it, the question that asks for a name is not. It lifts a little as it goes,
+   and `translateX(-50%)` is repeated because the centring lives in `transform`.
+   The blur is on the inner svg: the drop-shadow list above cannot interpolate
+   against a blur of a different length, so it would cut instead of fade. */
+.mark.out {
+  opacity: 0;
+  transform: translateX(-50%) scale(1.06);
+  pointer-events: none;
+}
+
+.wordmark {
+  display: block;
+  /* The viewBox is tight to the ink on all four sides, so centring the element
+     centres the mark. Its height is 1.53 x-heights (the ink runs 10…143 of 153
+     units for a 100-unit x-height, since `bolo`'s ascenders and the bowls' optical
+     overshoot set the frame), so 16.83vh puts the x-height band at 11vh — the
+     reference's 85px at 768 — and lands its centre on the screen's centre line,
+     which is where the reference measures it: 342…427 at 768, centre 384.5. */
+  height: 16.83vh;
+  width: auto;
+  overflow: visible;
+  transition: filter 640ms var(--ease-soft);
+}
+
+.mark.out .wordmark { filter: blur(9px); }
+
+/* Per-glyph entrance. The stagger is nth-child, not an inline custom property,
+   because the window's CSP forbids style attributes. */
+.wordmark .wm-g {
+  opacity: 0;
+  transform: translateY(14px);
+  filter: blur(16px);
+  animation: glyph-in 880ms var(--ease-out-expo) forwards;
+}
+.wordmark .wm-g:nth-child(1) { animation-delay: 180ms; }
+.wordmark .wm-g:nth-child(2) { animation-delay: 232ms; }
+.wordmark .wm-g:nth-child(3) { animation-delay: 284ms; }
+.wordmark .wm-g:nth-child(4) { animation-delay: 336ms; }
+.wordmark .wm-g:nth-child(5) { animation-delay: 388ms; }
+.wordmark .wm-g:nth-child(6) { animation-delay: 440ms; }
+.wordmark .wm-g:nth-child(7) { animation-delay: 492ms; }
+.wordmark .wm-g:nth-child(8) { animation-delay: 544ms; }
+
+@keyframes glyph-in {
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+/* --------------------------------------------------------------- narration */
+
+/* cap-top 252 / baseline 271 and 297 / 316 at 1360x768, i.e. 45px apart. */
+.say {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 142px);
+  transform: translateX(-50%);
+  width: min(80vw, 960px);
+  text-align: center;
+}
+
+.line {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.004em;
+  line-height: 45px;
+  min-height: 45px;
+  color: rgba(255, 255, 255, 0.94);
+  opacity: 0;
+  transform: translateY(9px);
+  transition: opacity 520ms var(--ease-soft), transform 620ms var(--ease-out-expo);
+}
+.line.on { opacity: 1; transform: none; }
+.line.out { opacity: 0; transform: translateY(-7px); }
+
+/* ------------------------------------------------------------------- gate */
+
+.gate {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 138px);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+}
+.gate.on {
+  opacity: 1;
+  animation: gate-in 900ms var(--ease-out-expo) both;
+}
+.gate.gone {
+  /* `animation: none` is load-bearing: gate-in runs with fill-mode `both`, and a
+     finished animation's final keyframe outranks a normal declaration, so
+     without this the pill would stay pinned at opacity 1 forever. */
+  animation: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.95);
+  pointer-events: none;
+  transition: opacity 380ms var(--ease-soft), transform 380ms var(--ease-soft);
+}
+@keyframes gate-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 16px)) scale(0.95); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 156x68, fully round. The reference's rim is brighter along the bottom and
+   right than the top — inverted glass again — and its fill is only ~10% white,
+   so it reads as tinted wallpaper rather than as a solid button. */
+.pill {
+  position: relative;
+  width: 156px;
+  height: 68px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 34px;
+  font: inherit;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: #fff;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 -2px 0 rgba(255, 255, 255, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 10px 30px rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  transition: transform 260ms var(--ease-out-expo), box-shadow 260ms var(--ease-soft),
+              background 260ms var(--ease-soft), filter 200ms var(--ease-soft);
+}
+.pill:hover {
+  transform: translateY(-1px) scale(1.02);
+  background: rgba(255, 255, 255, 0.17);
+  box-shadow:
+    inset 0 -2px 0 rgba(255, 255, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 16px 40px rgba(0, 0, 0, 0.38);
+}
+.pill:active { transform: translateY(0) scale(0.985); transition-duration: 90ms; }
+.pill:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.75); outline-offset: 3px; }
+.pill[disabled] { cursor: default; filter: saturate(0.6) brightness(0.9); }
+
+/* -------------------------------------------------------------- name ask */
+
+.askbar {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 42px);
+  transform: translate(-50%, -50%);
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 420ms var(--ease-soft);
+}
+.askbar.on { opacity: 1; pointer-events: auto; }
+
+.fields {
+  display: flex;
+  gap: var(--field-gap);
+  transform: translateY(16px) scale(0.985);
+  transition: transform 760ms var(--ease-out-expo);
+}
+.askbar.on .fields { transform: none; }
+
+/* Two pills, not one bar with a divider — the reference has a visible 12px gap
+   and each field is its own capsule. */
+.field {
+  position: relative;
+  display: block;
+  height: var(--field-h);
+  border-radius: calc(var(--field-h) / 2);
+  background: rgba(228, 229, 236, 0.74);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 12px 32px rgba(0, 0, 0, 0.26);
+  /* 7px, not 22px. These pills are laid straight over the logotype, and a 22px
+     blur smears its stems into a flat grey wash — which is what "the logo
+     disappears from background" was. The reference's own pixels say its glass
+     barely blurs: over the wordmark its fill reads #e8e9ee, i.e. the white is
+     still ~95% of what shows through. The fill's own opacity is what frosts the
+     capsule; the blur is only there to soften the desktop behind it. */
+  backdrop-filter: blur(7px) saturate(150%);
+  -webkit-backdrop-filter: blur(7px) saturate(150%);
+  transition: box-shadow 240ms var(--ease-soft), background 240ms var(--ease-soft);
+}
+.field:first-child { width: var(--field-1); }
+.field:last-child { width: var(--field-2); }
+.field:focus-within {
+  background: rgba(236, 237, 243, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.70),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.34),
+    0 14px 36px rgba(0, 0, 0, 0.30);
+}
+
+.field input {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  color: #10131a;
+  padding: 0 24px;
+  outline: none;
+  -webkit-text-fill-color: #10131a;
+}
+.field input::placeholder { color: transparent; }
+
+/* The placeholder is its own element so it can fade the instant there is a
+   value, rather than the browser's all-or-nothing placeholder swap. */
+.field-label {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  line-height: 1;
+  color: #8d939b;
+  pointer-events: none;
+  transition: opacity 180ms var(--ease-soft), transform 260ms var(--ease-out-expo);
+}
+/* The label fades when there is a *value*, and not when the field takes focus.
+   Focus used to hide it too, so the field the caret was in — the first one, which
+   is focused on purpose as the beat opens — was the one field with nothing to say
+   what it was for, and the two pills read as one labelled and one blank. The
+   reference keeps the label under the caret (`frames/f008.jpg`). */
+.field.filled .field-label { opacity: 0; transform: translateY(-50%) translateX(4px); }
+
+/* 31px, sitting 10px inside the right end of the second pill. */
+.askgo {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 31px;
+  height: 31px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  cursor: pointer;
+  background: var(--accent);
+  box-shadow: 0 2px 10px rgba(15, 110, 245, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  opacity: 0;
+  transform: translateY(-50%) scale(0.55);
+  pointer-events: none;
+  transition: opacity 240ms var(--ease-soft), transform 420ms var(--ease-out-expo),
+              filter 200ms var(--ease-soft);
+}
+.askbar.ready .askgo { opacity: 1; transform: translateY(-50%) scale(1); pointer-events: auto; }
+.askgo:hover { filter: brightness(1.08); }
+.askgo:active { transform: translateY(-50%) scale(0.92); transition-duration: 90ms; }
+.askgo svg { width: 17px; height: 17px; display: block; }
+
+/* ------------------------------------------------------------- languages */
+
+.langs {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 42px);
+  transform: translate(-50%, -50%);
+  width: min(74vw, 720px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 460ms var(--ease-soft);
+}
+.langs.on { opacity: 1; pointer-events: auto; }
+.lang {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  transform: translateY(10px);
+  opacity: 0;
+  animation: chip-in 520ms var(--ease-out-expo) forwards;
+  transition: background 200ms var(--ease-soft), transform 200ms var(--ease-out-expo),
+              border-color 200ms var(--ease-soft);
+}
+.lang:hover { background: rgba(255, 255, 255, 0.18); transform: translateY(-1px); }
+.lang.sel { background: #fff; color: #10131a; border-color: #fff; }
+@keyframes chip-in { to { opacity: 1; transform: none; } }
+
+/* Staggered the same way the wordmark is — via nth-child, because the window's
+   CSP blocks style attributes. */
+.lang:nth-child(1)  { animation-delay: 0ms; }
+.lang:nth-child(2)  { animation-delay: 26ms; }
+.lang:nth-child(3)  { animation-delay: 52ms; }
+.lang:nth-child(4)  { animation-delay: 78ms; }
+.lang:nth-child(5)  { animation-delay: 104ms; }
+.lang:nth-child(6)  { animation-delay: 130ms; }
+.lang:nth-child(7)  { animation-delay: 156ms; }
+.lang:nth-child(8)  { animation-delay: 182ms; }
+.lang:nth-child(9)  { animation-delay: 208ms; }
+.lang:nth-child(10) { animation-delay: 234ms; }
+.lang:nth-child(11) { animation-delay: 260ms; }
+.lang:nth-child(12) { animation-delay: 286ms; }
+
+/* ------------------------------------------------------------------ chrome */
+
+/* 13px at 50% white, 21px in from the right, baseline 25px off the bottom. */
+.skip {
+  position: fixed;
+  right: 21px;
+  bottom: 18px;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 400ms var(--ease-soft), color 200ms var(--ease-soft);
+}
+body.lit .skip { opacity: 1; transition-delay: 900ms; }
+.skip:hover { color: rgba(255, 255, 255, 0.92); }
+.skip:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.7); outline-offset: 2px; border-radius: 6px; }
+
+.fadeout {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 560ms var(--ease-soft);
+}
+.fadeout.on { opacity: 1; }
+
+/* ----------------------------------------------------------------- the beat */
+/* A single floating pane for every middle step. Same material language as the
+   name pills: light fill, soft blue rim, the desktop behind it dimmed by the
+   global scrim — not a card on a coloured canvas. Drops the progress bar and
+   the category rail the dashboard onboarding had; this is the intro's stage,
+   not a checklist. */
+.beat {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(42vw, 640px);
+  max-width: calc(100% - 96px);
+  transform: translate(-50%, -50%);
+  background: rgba(228, 229, 236, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 34px 38px;
+  backdrop-filter: blur(18px) saturate(1.05);
+  -webkit-backdrop-filter: blur(18px) saturate(1.05);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 460ms var(--ease-soft);
+}
+.beat.on { opacity: 1; pointer-events: auto; }
+.beat h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  color: #fff;
+}
+.beat p.bsub {
+  margin: 0 0 22px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* ----------------------------------------------------------------- nav rails */
+.beatnav {
+  position: absolute;
+  left: 50%;
+  bottom: 42px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 460ms var(--ease-soft);
+}
+.beat.on ~ .beatnav { opacity: 1; }
+
+.beatback {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+  color: rgba(255, 255, 255, 0.58);
+  cursor: pointer;
+  padding: 6px 4px;
+}
+.beatback:hover { color: rgba(255, 255, 255, 0.92); }
+.beatback:focus-visible { text-decoration: underline; }
+.beatback[hidden] { display: none; }
+
+.beatgo {
+  /* Reuses the pill look: same blur, same rim — it is a control, not a nav rail. */
+  width: auto;
+  min-height: 48px;
+  padding: 0 26px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 24px;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.beatgo[disabled] {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* ----------------------------------------------------------------- permissions */
+.perms { display: flex; flex-direction: column; gap: 12px; }
+.perm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(228, 229, 236, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 220ms var(--ease-soft), border-color 220ms var(--ease-soft);
+}
+.perm.granted {
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow: 0 0 0 3px rgba(80, 140, 255, 0.18),
+              0 0 28px 6px rgba(76, 154, 245, 0.22);
+}
+.perm .perm-text { flex: 1; }
+.perm .perm-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+.perm .perm-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.62);
+}
+.perm .perm-btn {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 2px 9px rgba(15, 110, 245, 0.34);
+  transition: transform 120ms var(--ease-out-expo), box-shadow 200ms var(--ease-soft);
+}
+.perm .perm-btn:hover { transform: scale(1.03); box-shadow: 0 4px 14px rgba(15, 110, 245, 0.46); }
+.perm .perm-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.perm .perm-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+/* ----------------------------------------------------------------- mic picker */
+#obMicSel {
+  width: 100%;
+  max-width: 100%;
+  padding: 9px 12px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(228, 229, 236, 0.16);
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  backdrop-filter: blur(6px);
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 24 14'%3E%3Cpath fill='%23fff' d='M6 9l6-6 6 6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+}
+#obMicSel:focus { outline: 2px solid rgba(255,255,255,0.65); outline-offset: 1px; }
+.obp-mic-note { font-size: 12px; color: rgba(255,255,255,0.56); margin: 8px 0 0; }
+
+/* ----------------------------------------------------------------- modes */
+.modes { display: flex; gap: 16px; justify-content: center; }
+.mode {
+  flex: 1;
+  min-width: 130px;
+  padding: 18px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(228, 229, 236, 0.07);
+  text-align: center;
+  backdrop-filter: blur(12px);
+}
+.mode.tested { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(76, 154, 245, 0.22); }
+.mode .mode-glyph { font-size: 24px; margin-bottom: 8px; }
+.mode .mode-name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+.mode .mode-key { font-size: 12px; color: rgba(255, 255, 255, 0.68); }
+.mode .mode-check { opacity: 0; transition: opacity 180ms var(--ease-soft); }
+.mode.tested .mode-check { opacity: 1; }
+
+/* ----------------------------------------------------------------- demo */
+.demo-area { margin-top: 18px; }
+.demo-textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.18);
+  color: #fff;
+  font: 14px/1.5 Lexend, sans-serif;
+  resize: vertical;
+}
+.demo-textarea::placeholder { color: rgba(255, 255, 255, 0.42); }
+.demo-textarea:focus { outline: 2px solid rgba(255, 255, 255, 0.58); outline-offset: 1px; }
+
+/* ----------------------------------------------------------------- email tiles */
+.tiles { display: flex; gap: 14px; justify-content: center; }
+.tile {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 13px;
+  background: rgba(228, 229, 236, 0.08);
+  padding: 16px;
+  cursor: pointer;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  transition: border-color 200ms var(--ease-soft), box-shadow 200ms var(--ease-soft);
+}
+.tile.sel { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(76, 154, 245, 0.24); }
+.tile svg { display: block; margin: 0 auto 8px; }
+.tile .tile-name { font-size: 13px; font-weight: 600; color: #fff; }
+.tile .tile-sub { font-size: 11px; color: rgba(255, 255, 255, 0.54); margin-top: 3px; }
+
+/* ----------------------------------------------------------------- reduced */
+@media (prefers-reduced-motion: reduce) {
+  .beat, .beatnav, .bloom, .mark, .gate { transition: none !important; }
+}
+
+.diag {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 99;
+  max-width: 60vw;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(120, 0, 0, 0.92);
+  color: #fff;
+  font: 12px/1.4 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+/* Leaving: the whole stage drops back and blurs a touch, so the handoff to the
+   dashboard reads as one continuous move rather than a cut. */
+body.leaving .stage,
+body.leaving .skip {
+  transform: scale(1.015);
+  filter: blur(5px);
+  opacity: 0;
+  transition: transform 620ms var(--ease-soft), filter 620ms var(--ease-soft), opacity 520ms var(--ease-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark .wm-g { animation-duration: 1ms; }
+  .bloom { animation: none !important; }
+  /* The mark is gone either way; it just does not travel or blur on the way. */
+  .mark.out { transform: translateX(-50%); }
+  .mark.out .wordmark { filter: none; }
+  * { transition-duration: 120ms !important; }
+}

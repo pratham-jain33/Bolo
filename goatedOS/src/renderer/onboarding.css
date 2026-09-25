@@ -1,0 +1,759 @@
+/* ============================================================================
+   bolo — onboarding.
+
+   The reference's setup flow is a full-window page, not a modal: a thin
+   progress bar pinned near the top, a content column, and Back / Continue at
+   the bottom corners. Every value below is measured off the recording
+   (frame coordinates are window-relative; the reference window's content box is
+   1080 x 708):
+
+     progress bar   24 … 1055 x 23 … 34        12 tall, r6
+     content inset  96 either side
+     standard column 396 wide
+     control height 48, radius 10
+     card gap       12      control gap 20
+     title          28px / 300 / #171717
+     body           15px / 400 / #6b7280
+     page bg        #fff, ramping to #def0fc over the last ~115px
+
+   Class prefix is `obp-` (onboarding page) to keep it clear of the older
+   modal-based `.ob-*` rules still present in styles.css.
+   ========================================================================== */
+
+.obp {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  /* A dark translucency scrim over the desktop still, matching the cinematic intro.
+     The still itself is set by the renderer from --ob-bg-image once the intro has
+     captured it, or from a fresh grab if onboarding starts without seeing the intro. */
+  background: rgba(8, 10, 14, 0.76);
+  background-image: var(--ob-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  backdrop-filter: blur(22px) saturate(0.7);
+  font-family: var(--font-sans, Lexend, system-ui, sans-serif);
+  color: #f5f5f5;
+  /* Scrollable, because a step can be taller than a short window — three
+     permission cards and a Continue button do not fit in 710px at every zoom
+     level, and clipping them leaves the flow with no way forward. */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.obp[hidden] { display: none; }
+
+/* ---------------------------------------------------------------- progress */
+
+.obp-progress {
+  position: fixed;
+  left: 24px;
+  right: 25px;
+  top: 23px;
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+.obp-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 6px;
+  /* The reference's fill is not flat: it starts saturated and fades into the
+     track colour at its leading edge, so the bar reads as a soft glow rather
+     than a hard-capped progress meter. */
+  background: linear-gradient(90deg,
+    #1f8fe4 0%, #3495e2 18%, #4ea7eb 34%, #8ac6ee 58%, #eef0f2 100%);
+  transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* -------------------------------------------------------------------- page */
+
+/* In flow rather than pinned, so tall content grows the page and scrolls under
+   the fixed chrome instead of overflowing an unreachable box. */
+.obp-page {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 56px 96px 96px;
+}
+
+.obp-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 300;
+  letter-spacing: -0.012em;
+  line-height: 36px;
+  color: #f5f5f5;
+}
+.obp-sub {
+  margin: 12px 0 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 22px;
+  color: #d1d1d6;
+  max-width: 46ch;
+}
+.obp-body { margin-top: 30px; }
+
+/* Centre-aligned page: some steps (the key check, "ask a simple question") sit
+   in a single centred column rather than the two-column shell. */
+.obp.center .obp-page {
+  align-items: center;
+  text-align: center;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+.obp.center .obp-title,
+.obp.center .obp-sub { text-align: left; }
+.obp.center .obp-body { display: flex; justify-content: center; width: 100%; }
+
+/* Two-column shell: a 396px column on the left, room for an illustration on
+   the right. Used by the login and permissions steps. */
+.obp.split .obp-page { padding-right: 24px; }
+.obp-split {
+  display: grid;
+  grid-template-columns: 396px 1fr;
+  gap: 40px;
+  align-items: center;
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------- atoms */
+
+.obp-col { width: 396px; }
+
+.obp-card {
+  background: rgba(228, 229, 236, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  backdrop-filter: blur(7px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 22px -10px rgba(0, 0, 0, 0.18);
+}
+.obp-card.big { border-radius: 20px; border-color: rgba(255, 255, 255, 0.22); }
+.obp-card.perm-granted {
+  box-shadow: 0 0 32px 4px rgba(80, 140, 255, 0.22);
+}
+.obp-card + .obp-card { margin-top: 12px; }
+.obp-card-pad { padding: 16px; }
+.obp-card-pad.wide { padding: 24px 32px; }
+
+.obp-h {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 26px;
+  letter-spacing: -0.006em;
+  color: #f5f5f5;
+}
+.obp-p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 22px;
+  color: #d1d1d6;
+}
+.obp-meta { font-size: 12.5px; line-height: 18px; color: #a1a1aa; }
+
+/* The line under the microphone picker. Sits tighter to the select than the
+   paragraph above it does, because it is a caption on that control rather than
+   a paragraph in its own right. */
+.obp-mic-note { margin-top: 10px; font-size: 13.5px; line-height: 19px; color: #d1d1d6; }
+
+/* The microphone picker.
+   `.field` reads its colours from the dashboard's theme, and this page is light
+   whatever that theme is — so the control came out a black bar on a white card,
+   with a dark-on-dark arrow. Every value here is stated outright, the same way
+   the rest of this file is. `color-scheme` is the one that is easy to miss: it
+   is what draws the native dropdown arrow and the popup, and neither follows
+   `color` or `background`. */
+.obp-card select.field {
+  color-scheme: dark;
+  width: auto;
+  min-width: 260px;
+  background: rgba(228, 229, 236, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  color: #f5f5f5;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.obp-card select.field:hover { border-color: rgba(255, 255, 255, 0.34); }
+.obp-card select.field:focus {
+  border-color: rgba(59, 146, 246, 0.42);
+  box-shadow: 0 0 0 3px rgba(59, 146, 246, 0.18);
+}
+
+/* Buttons ------------------------------------------------------------------ */
+
+.obp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.002em;
+  color: #f5f5f5;
+  cursor: pointer;
+  background: rgba(228, 229, 236, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 16px -10px rgba(0, 0, 0, 0.28);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms ease,
+              border-color 200ms ease, background 200ms ease, filter 200ms ease;
+}
+.obp-btn:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(228, 229, 236, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 10px 22px -10px rgba(0, 0, 0, 0.34);
+}
+.obp-btn:active { transform: translateY(1px) scale(0.99); }
+.obp-btn.wide { width: 100%; }
+.obp-btn[disabled] {
+  cursor: default;
+  color: rgba(217, 217, 222, 0.4);
+  background: rgba(228, 229, 236, 0.10);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+/* The page-level Continue, bottom-right. */
+.obp-next {
+  min-width: 138px;
+  height: 46px;
+  border-radius: 10px 12px 12px 10px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: #f5f5f5;
+  cursor: pointer;
+  padding: 0 22px;
+  background: rgba(228, 229, 236, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 20px -10px rgba(31, 143, 228, 0.42);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms ease,
+              color 200ms ease, filter 200ms ease;
+}
+.obp-next:hover { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 12px 26px -10px rgba(31, 143, 228, 0.5); }
+.obp-next:active { transform: translateY(1px) scale(0.99); }
+.obp-next[disabled] { color: rgba(217, 217, 222, 0.4); cursor: default; box-shadow: none; border-color: rgba(255, 255, 255, 0.12); background: rgba(228, 229, 236, 0.10); }
+
+/* Full-round CTA, used by the pricing step. */
+.obp-cta {
+  width: 100%;
+  height: 53px;
+  border-radius: 26.5px;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  color: #f5f5f5;
+  cursor: pointer;
+  background: rgba(228, 229, 236, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms ease;
+}
+.obp-cta:hover { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28); }
+.obp-cta:active { transform: translateY(1px) scale(0.994); }
+
+/* Bare text controls: Back, Skip, "Not working?". */
+.obp-link {
+  border: 0;
+  background: transparent;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  color: #71717a;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+.obp-link:hover { color: #e5e7eb; }
+.obp-link.strong { color: #e5e7eb; }
+
+/* Fields ------------------------------------------------------------------- */
+
+.obp-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(228, 229, 236, 0.14);
+  font: inherit;
+  font-size: 14px;
+  color: #f5f5f5;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+.obp-input::placeholder { color: rgba(217, 217, 222, 0.5); }
+.obp-input:focus {
+  background: rgba(228, 229, 236, 0.22);
+  border-color: rgba(59, 130, 246, 0.42);
+  box-shadow: 0 0 0 3px rgba(59, 146, 246, 0.18);
+}
+
+/* Step badge: the numbered blue puck in "ask a simple question". */
+.obp-step {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(59, 146, 246, 0.18);
+  border: 1px solid rgba(59, 146, 246, 0.34);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Key caps ------------------------------------------------------------------ */
+
+.obp-keycap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 70px;
+  height: 72px;
+  border-radius: 14px;
+  background: rgba(228, 229, 236, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease,
+              transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.obp-keycap.sm { width: 56px; height: 58px; border-radius: 14px; }
+.obp-keycap b { font-size: 19px; font-weight: 400; color: #e5e7eb; line-height: 1.15; }
+.obp-keycap i { font-size: 13px; font-style: normal; color: #a1a1aa; line-height: 1.15; }
+.obp-keycap u { font-size: 10px; text-decoration: none; color: #71717a; line-height: 1.15; }
+.obp-keycap.sm b { font-size: 16px; }
+.obp-keycap.sm i { font-size: 11px; }
+.obp-keycap.sm u { font-size: 9px; }
+/* The lit state has to be unmistakable. It used to wash a near-white cap to
+   #deeafa, which is white-to-white at a glance — the step asks "do the keys light
+   up blue?" and the honest answer was "they change imperceptibly", which is
+   indistinguishable from the step being broken. This is the blue the cap's own
+   shadow was already tinted with. */
+.obp-keycap.lit {
+  background: #1f8fe4;
+  border-color: #1a7fcc;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 12px rgba(31, 143, 228, 0.42);
+}
+.obp-keycap.lit b { color: #fff; }
+.obp-keycap.lit i { color: rgba(255, 255, 255, 0.86); }
+.obp-keycap.lit u { color: rgba(255, 255, 255, 0.7); }
+
+/* Inline key chip, for keys named inside a sentence. */
+.obp-kbd {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 2px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(228, 229, 236, 0.14);
+  font-size: 15px;
+  color: #f5f5f5;
+  vertical-align: baseline;
+}
+
+/* Check badge --------------------------------------------------------------- */
+
+.obp-check {
+  flex: 0 0 auto;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #1a73e8;
+  color: #ffffff;
+  transform: scale(0.4);
+  opacity: 0;
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), opacity 240ms ease;
+}
+.obp-check.on { transform: none; opacity: 1; }
+.obp-check svg { width: 13px; height: 13px; display: block; }
+
+.obp-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.obp-row .grow { flex: 1 1 auto; min-width: 0; }
+
+/* Choice tiles -------------------------------------------------------------- */
+
+.obp-tiles { display: flex; gap: 17px; }
+.obp-tile {
+  flex: 1 1 0;
+  border-radius: 22px;
+  padding: 30px 26px;
+  text-align: left;
+  background: rgba(228, 229, 236, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(7px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  font: inherit;
+  transition: background 220ms ease, border-color 220ms ease, transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 220ms ease;
+}
+.obp-tile:hover { transform: translateY(-2px); box-shadow: 0 10px 26px -14px rgba(0, 0, 0, 0.28); }
+.obp-tile.sel { background: rgba(59, 146, 246, 0.16); border-color: rgba(59, 146, 246, 0.34); }
+.obp-tile .tile-logo { height: 34px; display: flex; align-items: center; }
+.obp-tile .tile-name { margin-top: 40px; font-size: 15px; color: #f5f5f5; }
+
+/* Plan rows (pricing) ------------------------------------------------------- */
+
+.obp-plan {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 67px;
+  padding: 0 20px;
+  border-radius: 14px;
+  background: rgba(228, 229, 236, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.obp-plan + .obp-plan { margin-top: 13px; }
+.obp-plan.sel { border: 2px solid rgba(59, 146, 246, 0.42); }
+.obp-plan .plan-name { font-size: 17px; color: #f5f5f5; }
+.obp-plan .plan-price { margin-left: auto; font-size: 20px; font-weight: 700; color: #f5f5f5; }
+.obp-plan .plan-per { font-size: 13px; font-weight: 400; color: #a1a1aa; margin-left: 2px; }
+
+.obp-save {
+  position: absolute;
+  top: -11px;
+  right: 13px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 9.5px;
+  background: rgba(59, 146, 246, 0.22);
+  border: 1px solid rgba(59, 146, 246, 0.34);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Bottom chrome ------------------------------------------------------------- */
+
+.obp-back {
+  position: fixed;
+  left: 44px;
+  bottom: 25px;
+  border: 0;
+  background: transparent;
+  padding: 8px 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: color 160ms ease, opacity 200ms ease;
+}
+.obp-back:hover { color: #e5e7eb; }
+.obp-back[hidden] { display: none; }
+
+.obp-actions {
+  position: fixed;
+  right: 60px;
+  bottom: 25px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+/* Entrance ------------------------------------------------------------------ */
+
+.obp-title, .obp-sub, .obp-body {
+  animation: obp-in 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.obp-sub  { animation-delay: 60ms; }
+.obp-body { animation-delay: 120ms; }
+@keyframes obp-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------- step-specific composition */
+
+.obp-aside { display: flex; align-items: center; justify-content: center; }
+.obp-art { width: min(360px, 34vw); height: auto; display: block; }
+
+/* Centred steps share one 560px measure so the heading lines up with the card
+   underneath it rather than floating. */
+.obp.center .obp-split { display: flex; flex-direction: column; align-items: center; }
+.obp.center .obp-page { align-items: center; padding-left: 24px; padding-right: 24px; }
+.obp.center .obp-col { width: 100%; max-width: 560px; }
+.obp.center.wide .obp-col { max-width: 700px; }
+.obp.center .obp-body { display: flex; flex-direction: column; align-items: stretch; }
+
+/* The question above a key-check card. */
+.obp-q {
+  margin: 0 0 18px;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: #f5f5f5;
+}
+.obp-q-inline { margin-bottom: 22px; }
+
+.obp-inner {
+  background: rgba(228, 229, 236, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  backdrop-filter: blur(7px);
+  padding: 34px 24px;
+}
+.obp-keyrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+}
+.obp-plus { font-size: 16px; color: #71717a; }
+
+/* The combined three_modes_keys screen: three cards in a horizontal row. */
+.obp-modes-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.obp-modes-row .obp-keycheck { flex: 1 1 0; min-width: 220px; }
+
+/* Mode header inside each key-check card. */
+.obp-keycheck-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.obp-keycheck-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: rgba(59, 146, 246, 0.34);
+}
+.obp-keycheck-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f5f5f5;
+}
+/* Mode-specific dot colours: blue / amber / violet. */
+.obp-keycheck.keycheck-dictation .obp-keycheck-dot { background: #3b92f6; box-shadow: 0 0 0 4px rgba(59, 146, 246, 0.18); }
+.obp-keycheck.keycheck-edit .obp-keycheck-dot { background: #f59e0b; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18); }
+.obp-keycheck.keycheck-agent .obp-keycheck-dot { background: #5b46c6; box-shadow: 0 0 0 4px rgba(91, 70, 196, 0.18); }
+
+.obp-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 22px;
+  margin-top: 26px;
+}
+.obp-actions-row .obp-link { margin-right: auto; }
+
+/* Instruction rows inside the "ask a simple question" card. */
+.obp-steprow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 58px;
+}
+.obp-steprow + .obp-steprow { margin-top: 22px; }
+.obp-steprow .obp-h { font-size: 18px; line-height: 24px; }
+.obp-askcard .obp-card-pad.wide { padding: 28px 32px; }
+
+/* Fields ------------------------------------------------------------------- */
+
+.obp-fields { display: flex; gap: 12px; }
+.obp-fields .obp-input { flex: 1 1 0; }
+
+.obp-type {
+  height: auto;
+  padding: 14px 18px;
+  resize: none;
+  font-family: inherit;
+  line-height: 24px;
+}
+
+.obp-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.obp-chip {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(228, 229, 236, 0.14);
+  color: #e5e7eb;
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease,
+              transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.obp-chip:hover { border-color: rgba(255, 255, 255, 0.34); transform: translateY(-1px); }
+.obp-chip.sel { background: rgba(59, 146, 246, 0.18); border-color: rgba(59, 146, 246, 0.42); color: #ffffff; }
+
+/* A card's own button sits below its text, not beside it. */
+.obp-card-pad > .obp-btn { margin-top: 16px; }
+
+/* Keyword picker ------------------------------------------------------------- */
+.obp-keyword-list { display: flex; flex-direction: column; gap: 6px; }
+.obp-keyword-list .obp-row { justify-content: space-between; }
+
+/* Prose block inside a step -------------------------------------------------- */
+.obp-prose p { margin: 8px 0; font-size: 15px; line-height: 22px; color: #d1d1d6; }
+.obp-prose p:first-child { margin-top: 0; }
+
+/* The three-modes list in three_modes_explanation. One row per mode: the name,
+   its keycap chip, then what the key does. */
+.obp-modelist { list-style: none; margin: 14px 0; padding: 0; }
+.obp-modelist li {
+  margin: 10px 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: #d1d1d6;
+}
+.obp-modelist li b { color: #f5f5f5; font-weight: 600; margin-right: 4px; }
+
+/* Typing speed comparison ---------------------------------------------------- */
+.obp-typing-stats { display: flex; gap: 32px; justify-content: center; }
+.obp-typing-stat { text-align: center; }
+.obp-typing-label { font-size: 11px; font-weight: 600; color: #71717a; letter-spacing: 0.05em; }
+.obp-typing-value { font-size: 32px; font-weight: 700; color: #f5f5f5; line-height: 1.1; }
+.obp-typing-unit { font-size: 12px; font-weight: 500; color: #a1a1aa; }
+
+/* A card's own button sits below its text, not beside it. */
+.obp-card-pad > .obp-btn { margin-top: 16px; }
+
+/* The demo stage -------------------------------------------------------------
+   Shows the pipeline running rather than describing it. Sits under the numbered
+   rows in the four demo steps. */
+
+.obp-demo {
+  margin-top: 18px;
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  background: rgba(228, 229, 236, 0.08);
+  backdrop-filter: blur(7px);
+}
+
+.obp-demo-head { display: flex; align-items: center; gap: 9px; min-height: 20px; }
+
+.obp-demo-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(217, 217, 222, 0.34);
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+.obp-demo-dot.live { background: #1f8fe4; box-shadow: 0 0 0 4px rgba(31, 143, 228, 0.16); animation: obp-pulse 1.3s ease-in-out infinite; }
+.obp-demo-dot.busy { background: #e8a33d; box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.16); }
+.obp-demo-dot.done { background: #2e9e63; box-shadow: 0 0 0 4px rgba(46, 158, 99, 0.16); }
+
+@keyframes obp-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(31, 143, 228, 0.16); }
+  50% { box-shadow: 0 0 0 7px rgba(31, 143, 228, 0.06); }
+}
+
+.obp-demo-state { font-size: 13px; color: #d1d1d6; }
+
+.obp-demo-meter {
+  margin-left: auto;
+  width: 84px;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.obp-demo-meter.on { opacity: 1; }
+.obp-demo-meter i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 9999px;
+  background: #1f8fe4;
+  transition: width 90ms linear;
+}
+
+.obp-demo-heard {
+  margin: 10px 0 0;
+  min-height: 23px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #f5f5f5;
+}
+.obp-demo-heard.muted { color: #a3adb8; }
+
+/* The frosted glass textarea that holds dictated / edited text in the demo steps. */
+.obp-demo-textarea {
+  margin-top: 24px;
+  width: 100%;
+  min-height: 96px;
+  max-height: 240px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(228, 229, 236, 0.08);
+  backdrop-filter: blur(7px);
+  font-family: var(--font-sans, Lexend, system-ui, sans-serif);
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #f5f5f5;
+  resize: none;
+}
+.obp-demo-textarea::placeholder { color: rgba(217, 217, 222, 0.4); }
+.obp-demo-textarea:focus {
+  border-color: rgba(59, 130, 246, 0.42);
+  box-shadow: 0 0 0 3px rgba(59, 146, 246, 0.18);
+  outline: none;
+}
+
+.obp-demo-trail { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 10px; }
+
+.obp-demo-chip {
+  padding: 2px 9px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 600;
+}
+/* Same four intents as the dashboard's tag, so the chip means the same thing in
+   both places. */
+.obp-demo-chip[data-intent="insert"] { background: rgba(31, 143, 228, 0.18); border-color: rgba(31, 143, 228, 0.34); color: #93c5fd; }
+.obp-demo-chip[data-intent="answer"] { background: rgba(91, 70, 196, 0.18); border-color: rgba(91, 70, 196, 0.34); color: #c4b5ff; }
+.obp-demo-chip[data-intent="edit"] { background: rgba(180, 99, 26, 0.18); border-color: rgba(180, 99, 26, 0.34); color: #fdba74; }
+.obp-demo-chip[data-intent="act"] { background: rgba(34, 122, 76, 0.18); border-color: rgba(34, 122, 76, 0.34); color: #86efac; }
+
+.obp-demo-msg { font-size: 13px; color: #d1d1d6; }
+.obp-demo-foot { margin-top: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .obp-title, .obp-sub, .obp-body { animation-duration: 1ms; }
+  .obp-bar { transition-duration: 120ms; }
+  .obp-demo-dot { animation: none; }
+}

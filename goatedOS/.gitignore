@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+*.log
+
+# Live API credentials. keys.js tolerates this file being absent, so a fresh
+# clone runs keyless and takes keys through Settings instead of committing them.
+src/main/seed-keys.js
