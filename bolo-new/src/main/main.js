@@ -541,8 +541,37 @@ async function pasteLast() {
 // injector — voice.js emits bolo:doctor-result and the doctor window owns the
 // note from there. The notch stays out of it: the doctor window shows its own
 // state, and a capsule popping over the clinic's software would be noise.
+// The clinic-software window the doctor was in when dictation started.
+// Captured BEFORE the Doctor Mode window takes focus; paste refocuses it, so
+// the note lands in the clinic software — not in the Bolo window the doctor
+// just clicked.
+let doctorPasteHwnd = null;
+
+// The Doctor Mode window's own HWND, so a dictation started from inside the
+// doctor window (mic button) does not overwrite the real clinic target.
+function doctorOwnHwnd() {
+  try {
+    const w = doctor.getWindow();
+    if (!w || w.isDestroyed()) return null;
+    const h = w.getNativeWindowHandle();
+    const v = h.length >= 8 ? h.readBigUInt64LE(0) : BigInt(h.readUInt32LE(0));
+    return v === 0n ? null : v.toString();
+  } catch (_) {
+    return null;
+  }
+}
+
 async function triggerDoctor() {
   if (!doctor.isOpen()) doctor.create(preloadPath, rendererDir);
+  // Capture the doctor's app BEFORE show() steals focus. Only on session
+  // start — the stop toggle happens with focus already inside Bolo.
+  try {
+    if (voice.getState().state === 'idle') {
+      const fg = await injector.foregroundHwnd();
+      const own = doctorOwnHwnd();
+      if (fg.ok && fg.hwnd && fg.hwnd !== own) doctorPasteHwnd = fg.hwnd;
+    }
+  } catch (_) {}
   doctor.show();
   const r = await voice.toggle({
     broadcast: broadcastAll,
@@ -794,10 +823,12 @@ ipcMain.handle('bolo:doctor-open', async () => {
   doctor.show();
   return { ok: true };
 });
-// Paste the reviewed note into whatever window is focused — the clinic's
-// software, Word, Notepad. Phase 5 hardens this path (foreground-window
-// capture and refocus); the injector's clipboard+Ctrl+V is the mechanism.
-ipcMain.handle('bolo:doctor-paste', async (_e, text) => injector.inject(String(text || '')));
+// Paste the reviewed note back into the clinic software captured at dictation
+// start. The doctor clicked this button inside the Bolo window, so the target
+// is refocused first — otherwise the note would land in Bolo itself.
+// If anything fails, the note stays on the clipboard AND in the Doctor Mode
+// window, so it is never lost.
+ipcMain.handle('bolo:doctor-paste', async (_e, text) => injector.injectInto(String(text || ''), doctorPasteHwnd));
 // Organize a raw dictation into the fixed patient-note template. Never throws
 // away the dictation: on failure everything lands in Complaints.
 ipcMain.handle('bolo:doctor-structure', async (_e, text) => doctor.structureNote(String(text || '')));
