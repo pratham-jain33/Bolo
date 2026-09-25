@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, screen, shell: electronShell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, screen, shell: electronShell, session, globalShortcut } = require('electron');
 const path = require('path');
 
 const settings = require('./settings');
@@ -21,6 +21,8 @@ const wake = require('./wake');
 const onboarding = require('./onboarding');
 const keys = require('./keys');
 const capture = require('./capture');
+const doctor = require('./doctor');
+const injector = require('./injector');
 const stt = require('./stt');
 const tts = require('./tts');
 const trace = require('./trace');
@@ -532,6 +534,42 @@ async function pasteLast() {
 }
 
 /* ---------------------------------------------------------------------------
+   Doctor Mode
+   ------------------------------------------------------------------------ */
+// The doctor window's toggle: opens the window if it is not open, then runs a
+// doctor-flagged voice session. The transcript bypasses the router and the
+// injector — voice.js emits bolo:doctor-result and the doctor window owns the
+// note from there. The notch stays out of it: the doctor window shows its own
+// state, and a capsule popping over the clinic's software would be noise.
+async function triggerDoctor() {
+  if (!doctor.isOpen()) doctor.create(preloadPath, rendererDir);
+  doctor.show();
+  const r = await voice.toggle({
+    broadcast: broadcastAll,
+    mode: 'dictation',
+    doctor: true
+  }).catch((e) => ({ state: 'idle', error: (e && e.message) || String(e) }));
+  if (r && r.error && r.state === 'idle' && !r.started && !r.transcript) {
+    console.error('[bolo doctor] toggle threw: ' + r.error);
+  }
+  return r;
+}
+
+// One global shortcut for Doctor Mode: Ctrl+Shift+D. Press-only, like the
+// other activation keys — it toggles the doctor dictation, opening the window
+// first when it is not open.
+function registerDoctorShortcut() {
+  try {
+    const ok = globalShortcut.register('CommandOrControl+Shift+D', () => {
+      triggerDoctor().catch((e) => console.error('[bolo doctor] shortcut: ' + e.message));
+    });
+    if (!ok) console.log('[bolo doctor] shortcut Ctrl+Shift+D was taken by another app');
+  } catch (e) {
+    console.log('[bolo doctor] shortcut failed: ' + e.message);
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Boot
    ------------------------------------------------------------------------ */
 let introPending = false;
@@ -554,11 +592,14 @@ if (gotSingleInstanceLock) app.whenReady().then(() => {
   trace.init();
 
   // The intro replaces the dashboard's first paint, so decide before creating
-  // the window whether it should reveal itself.
+  // the window whether it should reveal itself. --doctor skips the animated
+  // onboarding entirely: the doctor window opens instead, and the dashboard
+  // stays hidden until the tray asks for it. The consumer path is untouched.
+  const doctorMode = process.argv.includes('--doctor');
   const ob = onboarding.get();
-  introPending = !ob.completed && !ob.introSeen;
+  introPending = !doctorMode && !ob.completed && !ob.introSeen;
 
-  shell.createMain(preloadPath, rendererFile, isDev, { deferShow: introPending });
+  shell.createMain(preloadPath, rendererFile, isDev, { deferShow: introPending || doctorMode });
 
   try { shell.createPill(preloadPath, rendererDir); } catch (_) {}
   try { notch.create(preloadPath, rendererDir); } catch (_) {}
@@ -587,6 +628,16 @@ if (gotSingleInstanceLock) app.whenReady().then(() => {
   // native hook loaded; otherwise this leaves them on the globalShortcut toggle
   // just registered.
   try { applyActivation(); } catch (e) { console.log('[bolo activation] ' + e.message); }
+
+  // Doctor Mode's one global shortcut. Registered in every launch, not just
+  // --doctor, so the doctor window is always one key away.
+  registerDoctorShortcut();
+
+  if (doctorMode) {
+    doctor.create(preloadPath, rendererDir);
+    const dw = doctor.getWindow();
+    if (dw) dw.once('ready-to-show', () => doctor.show());
+  }
 
   // The microphone. Permission handlers have to be installed before any renderer
   // asks for getUserMedia, and the capture window is created at boot so the first
@@ -733,6 +784,20 @@ ipcMain.handle('bolo:get-usage', async () => ({
 ipcMain.handle('bolo:voice-toggle', async (_e, p) => triggerVoice({ mode: p && p.mode }));
 ipcMain.handle('bolo:voice-state', async () => voice.getState());
 ipcMain.handle('bolo:paste-last', async () => pasteLast());
+
+/* ---------------------------------------------------------------------------
+   Doctor Mode
+   ------------------------------------------------------------------------ */
+ipcMain.handle('bolo:doctor-toggle', async () => triggerDoctor());
+ipcMain.handle('bolo:doctor-open', async () => {
+  if (!doctor.isOpen()) doctor.create(preloadPath, rendererDir);
+  doctor.show();
+  return { ok: true };
+});
+// Paste the reviewed note into whatever window is focused — the clinic's
+// software, Word, Notepad. Phase 5 hardens this path (foreground-window
+// capture and refocus); the injector's clipboard+Ctrl+V is the mechanism.
+ipcMain.handle('bolo:doctor-paste', async (_e, text) => injector.inject(String(text || '')));
 
 /* ---------------------------------------------------------------------------
    The voice key and the intent table
