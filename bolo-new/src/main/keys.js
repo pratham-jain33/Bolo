@@ -3,26 +3,27 @@ const Store = require('electron-store');
 // seed-keys.js holds live credentials and is gitignored, so it may legitimately
 // be absent on a fresh clone. A missing seed file means "no bundled keys", not a
 // crash on boot — the app still runs and keys can be pasted into Settings.
-let seed = { groq: [], deepgram: [] };
+let seed = { groq: [], deepgram: [], sarvam: [] };
 try {
   seed = require('./seed-keys');
 } catch (_) { /* not shipped / not cloned: run keyless until one is added */ }
 
 // Original secure-ish local key store for bolo.
 //
-// Two providers now, not one: Groq does both the speech-to-text and the model
-// work, and Deepgram does the speaking. They rotate independently — a Groq key
-// hitting a rate limit must not put a Deepgram key into cooldown, and the two
-// services have unrelated key shapes.
+// Three providers now, not two: Groq does the speech-to-text and the model
+// work, Deepgram does the speaking, and Sarvam does Hindi/Hinglish
+// speech-to-text via Saaras. They rotate independently — a Groq key hitting a
+// rate limit must not put a Sarvam key into cooldown, and the services have
+// unrelated key shapes.
 //
-// The store is therefore shaped { providers: { groq: {keys,index}, deepgram: {...} } }
+// The store is therefore shaped { providers: { groq: {keys,index}, deepgram: {...}, sarvam: {...} } }
 // rather than the flat { keys, index } it used to be. `migrateLegacy` carries an
 // install that predates the split across, so nobody loses the key they already
 // pasted in. Keys live in the `bolo-keys` store file and are never logged in
 // full, and never handed to a renderer — `listMasked` is the only reader a
 // renderer is allowed to have.
 
-const PROVIDERS = ['groq', 'deepgram'];
+const PROVIDERS = ['groq', 'deepgram', 'sarvam'];
 const DEFAULT_PROVIDER = 'groq';
 
 // Bumped when the bundled keys in seed-keys.js change and should be re-offered
