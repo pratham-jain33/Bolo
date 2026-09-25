@@ -1,6 +1,7 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 const groq = require('./groq');
+const medvocab = require('./medvocab');
 
 // The patient-note template fields, in the order they paste.
 const TEMPLATE_FIELDS = ['name', 'ageSex', 'complaints', 'vitals', 'diagnosis', 'prescription'];
@@ -80,7 +81,11 @@ function send(channel, payload) {
 // lands in Complaints, still editable, so a structuring failure can never
 // lose the dictation.
 async function structureNote(transcript) {
-  const text = String(transcript || '').trim();
+  const rawText = String(transcript || '').trim();
+  // The vocabulary correction runs before the model sees the words: STT
+  // mangles drug names ("paracitamol", "amlo de pine") and the template must
+  // carry the canonical spellings. Conservative by design — see medvocab.js.
+  const text = medvocab.correct(rawText);
   const fallback = () => ({
     ok: false,
     fields: { name: '', ageSex: '', complaints: text, vitals: '', diagnosis: '', prescription: '' }
@@ -95,6 +100,7 @@ async function structureNote(transcript) {
     '- "vitals": BP, pulse, temperature, SpO2, weight, etc.\n' +
     '- "diagnosis": the doctor\'s assessment.\n' +
     '- "prescription": medicines with dosage and instructions, one per line.\n' +
+    '- Spell drug names canonically: ' + medvocab.drugList().join(', ') + '.\n' +
     '- Leave a field as "" when the dictation does not mention it. Do not invent information.\n' +
     '\n' +
     'Dictation:\n---\n' + text + '\n---';
