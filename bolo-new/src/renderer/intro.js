@@ -71,10 +71,10 @@ function isLastIntroStep() {
 }
 
 function syncDemoMode() {
-  // No demo routing anywhere in the intro: every beat drives the real voice
-  // pipeline (real mic → real router → real injection / real agent acts), so
-  // there is never a demo binding to open. This only ever closes a stale one
-  // left behind by an older run.
+  // Every beat drives the real voice pipeline (real mic → real router → real
+  // agent acts); only a live key trial opens a demo binding, so its results
+  // are delivered to this window instead of pasted into the focused app.
+  // This only ever closes a stale binding left behind by an older run.
   if (!window.bolo) return;
   if (demoStep) {
     demoStep = null;
@@ -1046,13 +1046,14 @@ function trialTextMatch(text, target) {
   return hit / t.length >= 0.6;
 }
 
-// Trials run on the real pipeline, so there is no router binding to open or
-// close — ending a trial is just clearing the local state.
+// Trials run on the real pipeline; the only binding is the demo-routed
+// delivery opened in startKeyTrial, closed here on every exit path.
 function endKeyTrial() {
   if (!keyTrial && !keyConfirming) return;
   keyTrial = null;
   keyConfirming = null;
   trialSession = false;
+  try { if (bolo.obDemoEnd) bolo.obDemoEnd().catch(() => {}); } catch (_) {}
   // The meter belongs to the trial card that is going away; dropping the
   // reference stops the level stream writing into a detached node.
   trialMeterEl = null;
@@ -1120,10 +1121,17 @@ function advanceFromKeyPage() {
 function startKeyTrial(mode) {
   if (!obState || obState.step !== 'three_modes_keys' || abandoned) { keyConfirming = null; return; }
   keyTrial = { mode };
+  // Deterministic delivery: while a trial is live, voice results come back to
+  // this window over IPC (bolo:ob-demo-result) instead of being pasted into
+  // whatever the OS has focused. The real pipeline used to miss the trial box
+  // whenever focus moved between session start and paste — the words were
+  // "injected" into another app and the trial reported "could not type into
+  // the box". The agent trial is unaffected: `act` never consults demoMode.
+  try { if (bolo.obDemoStart) bolo.obDemoStart('trial:' + mode).catch(() => {}); } catch (_) {}
   renderThreeModes();
   syncBeatNav();
-  // The real pipeline pastes into whatever has focus, so put the caret in the
-  // trial box — otherwise the dictated line lands nowhere visible.
+  // Keep the caret in the trial box for the user's own typing; spoken results
+  // now arrive directly (see the demo binding above), not via focused paste.
   try {
     const ta = $('beat') && $('beat').querySelector('.demo-textarea');
     if (ta) ta.focus();
@@ -1650,6 +1658,30 @@ try {
   // that a human can see, so the box is what decides — a trial the user cannot
   // observe is not a passing trial. Dictation needs no completion here: the
   // pasted line fires the box's own input matcher.
+  // Trial delivery: with demo routing on, dictation/edit results arrive here
+  // directly instead of via system paste, so they cannot miss the trial box.
+  // The dashboard's own ob-demo-result listener gates on its demoLive state,
+  // so the two never both act on one result.
+  bolo.on('bolo:ob-demo-result', (r) => {
+    if (!keyTrial || abandoned) return;
+    if (!obState || obState.step !== 'three_modes_keys') return;
+    if (!r || typeof r.text !== 'string' || !r.text) return;
+    const ta = $('beat') && $('beat').querySelector('.demo-textarea');
+    if (!ta || !ta.isConnected) return;
+    keyTrial.before = r.text;
+    if (keyTrial.mode === 'dictation') {
+      // One attempt, one judgment: replacing (not appending) keeps the 60%
+      // word-match honest across retries. The synthetic input event runs the
+      // box's own matcher, which completes the trial on a hit.
+      ta.value = r.text;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (keyTrial.mode === 'edit') {
+      ta.value = r.text;
+      completeTrial('edit');
+    }
+    // The agent trial has no box; it completes on bolo:answer.
+  });
+
   bolo.on('bolo:injected', (r) => {
     if (!keyTrial || abandoned) return;
     if (!obState || obState.step !== 'three_modes_keys') return;
