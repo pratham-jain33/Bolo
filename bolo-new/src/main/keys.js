@@ -28,9 +28,7 @@ const DEFAULT_PROVIDER = 'groq';
 // Bumped when the bundled keys in seed-keys.js change and should be re-offered
 // to an install that never added any of its own. v2 is the google provider: an
 // install already at v1 has to see the new provider, and the per-provider guard
-// in applySeed still protects any key the user pasted themselves. Spotify is one
-// provider later and deliberately does NOT bump this — see seedSpotifyClient,
-// which has to stay reachable after the gate has closed.
+// in applySeed still protects any key the user pasted themselves.
 const SEED_VERSION = 2;
 
 let store = null;
@@ -44,7 +42,6 @@ function init() {
   });
   migrateLegacy();
   applySeed();
-  seedSpotifyClient();
   return store;
 }
 
