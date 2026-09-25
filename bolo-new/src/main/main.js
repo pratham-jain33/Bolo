@@ -798,6 +798,9 @@ ipcMain.handle('bolo:doctor-open', async () => {
 // software, Word, Notepad. Phase 5 hardens this path (foreground-window
 // capture and refocus); the injector's clipboard+Ctrl+V is the mechanism.
 ipcMain.handle('bolo:doctor-paste', async (_e, text) => injector.inject(String(text || '')));
+// Organize a raw dictation into the fixed patient-note template. Never throws
+// away the dictation: on failure everything lands in Complaints.
+ipcMain.handle('bolo:doctor-structure', async (_e, text) => doctor.structureNote(String(text || '')));
 
 /* ---------------------------------------------------------------------------
    The voice key and the intent table
