@@ -314,13 +314,27 @@
             <div class="setting">
               <div class="setting-text">
                 <div class="setting-label">Transcription provider</div>
-                <div class="setting-desc">Groq Whisper is the default. Sarvam Saaras is the Hindi/Hinglish option — it needs a Sarvam key below. Auto uses Sarvam when a key exists, Groq otherwise.</div>
+                <div class="setting-desc">Groq Whisper is the default. Sarvam Saaras is the Hindi/Hinglish/Kannada option — it needs a Sarvam key below. Auto uses Sarvam when a key exists, Groq otherwise.</div>
               </div>
               <div class="row">
                 <select id="sttProvider" class="field" style="width:130px">
                   <option value="groq">Groq</option>
                   <option value="sarvam">Sarvam</option>
                   <option value="auto">Auto</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
+                <div class="setting-label">Sarvam language</div>
+                <div class="setting-desc">Auto detects the language per recording. Pick one explicitly if short dictations get misdetected.</div>
+              </div>
+              <div class="row">
+                <select id="sarvamLang" class="field" style="width:130px">
+                  <option value="unknown">Auto</option>
+                  <option value="hi-IN">Hindi</option>
+                  <option value="en-IN">English</option>
+                  <option value="kn-IN">Kannada</option>
                 </select>
               </div>
             </div>
