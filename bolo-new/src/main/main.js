@@ -360,6 +360,15 @@ async function revealNotchForTrial() {
 async function startHold(mode) {
   console.log('[bolo hold] press mode=' + mode);
   trace.log('hold', 'press', { mode });
+  // A press that arrives while a session is already live is a duplicate or a
+  // delayed hook delivery (the intro trial's IPC fallback may have started the
+  // session first). Toggling here would stop the live session mid-utterance.
+  // In hold semantics a second press without an intervening release cannot be
+  // a new session, so ignoring it is strictly more correct.
+  if (voice.getState().state === 'listening') {
+    trace.log('hold', 'press ignored: already listening', { mode });
+    return { state: 'listening' };
+  }
   revealNotchForTrial();
   setMode(mode);
   cancelDwell();
