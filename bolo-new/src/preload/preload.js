@@ -34,6 +34,9 @@ const EVENTS = [
   // A microphone plugged in or unplugged, re-broadcast for an open picker.
   'bolo:mic-devices-changed',
   'bolo:keys',
+  // Doctor Mode: the transcript of a doctor dictation session, delivered to
+  // the doctor window for templating instead of being routed or injected.
+  'bolo:doctor-result',
   // Streaming speech: main pushes a reply's audio to the window that plays it as
   // Deepgram generates it, so playback starts on the first words rather than on
   // the last. src/renderer/speak.js subscribes once and plays; no caller opts in.
@@ -126,6 +129,14 @@ contextBridge.exposeInMainWorld('bolo', {
 
   /* ── Visibility ───────────────────────────────────────────────────────── */
   visibilitySet: (patch) => ipcRenderer.invoke('bolo:visibility-set', patch),
+
+  /* ── Doctor Mode ──────────────────────────────────────────────────────── */
+  // The doctor window's own IPC. Kept apart from the consumer voice path on
+  // purpose: nothing here touches the router, the injector's auto-paste, or
+  // the onboarding demo routing.
+  doctorToggle: () => ipcRenderer.invoke('bolo:doctor-toggle'),
+  doctorOpen: () => ipcRenderer.invoke('bolo:doctor-open'),
+  doctorPaste: (text) => ipcRenderer.invoke('bolo:doctor-paste', text),
 
   /* ── Flat preferences ─────────────────────────────────────────────────── */
   setPref: (key, value) => ipcRenderer.invoke('bolo:set-pref', key, value),
