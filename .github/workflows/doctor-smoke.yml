@@ -2,13 +2,13 @@ name: doctor-smoke
 
 # What this is: the automated half of Doctor Mode testing. A real Windows
 # runner installs the app, runs the doctor check suite (which exercises the
-# PowerShell injection sidecar, the vocabulary layer, the note template and
-# the doctor window itself), and then boots Doctor Mode the way a doctor
+# vocabulary layer, the note template, the Copy/Save/Print outputs and the
+# doctor window itself), and then boots Doctor Mode the way a doctor
 # would — asserting it stays alive with no uncaught exceptions.
 #
-# What it is not: a microphone, Hindi/Hinglish speech, or a real clinic app.
-# The dictation-to-paste path into actual clinic software still needs a human
-# on a real machine. This catches everything below that layer.
+# What it is not: a microphone, Hindi/Hinglish/Kannada speech, a real printer,
+# or a human reading the saved note. Dictation quality in the four languages
+# still needs a human voice. This catches everything below that layer.
 
 on:
   push:
@@ -40,8 +40,17 @@ jobs:
         run: npm run check
 
       - name: doctor check suite
-        run: npx electron tools/doctor-check.js
         timeout-minutes: 10
+        run: |
+          npx electron tools/doctor-check.js 2>&1 | Tee-Object -FilePath doctor-check.log
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: upload doctor check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doctor-check-log
+          path: bolo-new/doctor-check.log
 
       - name: boot Doctor Mode like a doctor would
         timeout-minutes: 5
