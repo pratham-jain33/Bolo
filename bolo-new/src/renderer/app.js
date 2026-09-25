@@ -819,11 +819,12 @@ function bindSwitch(el, initial, onChange, msgOn, msgOff) {
    cannot see is a key you cannot tell is missing — and a missing Deepgram key
    looks exactly like the voice being broken.
    ------------------------------------------------------------------------ */
-const PROVIDER_LABEL = { groq: 'Groq', deepgram: 'Deepgram' };
-const PROVIDER_PLACEHOLDER = { groq: 'gsk_…', deepgram: 'Deepgram API key' };
+const PROVIDER_LABEL = { groq: 'Groq', deepgram: 'Deepgram', sarvam: 'Sarvam' };
+const PROVIDER_PLACEHOLDER = { groq: 'gsk_…', deepgram: 'Deepgram API key', sarvam: 'Sarvam API key' };
 const PROVIDER_HELP = {
   groq: 'Add a Groq key to enable transcription and the model.',
-  deepgram: 'Add a Deepgram key to enable the spoken voice.'
+  deepgram: 'Add a Deepgram key to enable the spoken voice.',
+  sarvam: 'Add a Sarvam key to enable Hindi/Hinglish transcription (Saaras).'
 };
 
 // Held so the `bolo:keys` listener below can keep the speaker switch in step
@@ -1135,6 +1136,11 @@ async function refreshSpeech() {
     ? 'Groq · ' + s.sttModel
     : 'No transcription model set.';
 
+  // Which backend transcribes. The select is the only writer; the setting is
+  // read back here so an external change (or a fresh default) still shows.
+  const sttSel = $('sttProvider');
+  if (sttSel) sttSel.value = ['groq', 'sarvam', 'auto'].includes(s.sttProvider) ? s.sttProvider : 'groq';
+
   ttsSwitch = bindSwitch(
     $('ttsToggle'), s.ttsEnabled,
     (on) => bolo.setTts(on),
@@ -1161,6 +1167,15 @@ $('sttSave').onclick = async () => {
   const r = await bolo.setSttModel($('sttInput').value.trim());
   $('sttBox').textContent = 'Groq · ' + r.model;
   toast('Transcription model set to ' + r.model);
+};
+
+// The provider select writes through the same IPC the preload exposes; a bad
+// value can only come from a hand-edited store, and main clamps it.
+const sttProviderSel = $('sttProvider');
+if (sttProviderSel) sttProviderSel.onchange = async () => {
+  const r = await bolo.setSttProvider(sttProviderSel.value);
+  sttProviderSel.value = r.provider;
+  toast('Transcription provider: ' + r.provider);
 };
 
 $('sttTest').onclick = async () => {
