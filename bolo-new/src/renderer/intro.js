@@ -996,6 +996,46 @@ const TRIAL_INSTRUCTIONS = {
 let keyTrial = null; // { mode } while a trial is live on the current key screen
 const keyTrialText = { dictation: '' }; // dictated line, carried into the edit trial
 
+// Trial-local session driving. The global activation path (uiohook /
+// globalShortcut) is flaky while the intro is up — the local chord detector
+// above exists for exactly that reason — but it goes quiet during a trial
+// because the caret sits in the trial's textarea (typingInField). Without a
+// fallback, holding the chord starts no session: the meter never moves and no
+// words ever land. While a trial is live, a chord held in THIS window drives
+// the session over IPC. The short delay lets a working global path win, so a
+// press is never double-driven.
+let trialSession = false; // this trial started the session via IPC; it must stop it
+let lastVoiceState = 'idle';
+function trialChordHeld() {
+  if (!keyTrial || abandoned) return false;
+  const parts = accelParts(keyForMode(keyTrial.mode)).map((p) => String(p).toLowerCase());
+  return parts.length > 0 && parts.every((p) => downLabels.has(p));
+}
+function trialKeyDown() {
+  if (!keyTrial || trialSession || abandoned) return;
+  if (!trialChordHeld()) return;
+  setTimeout(() => {
+    if (!keyTrial || trialSession || abandoned) return;
+    // The global path fired: a session is already live, nothing to do.
+    if (lastVoiceState === 'listening' || lastVoiceState === 'routing') return;
+    trialSession = true;
+    try {
+      const r = bolo.voiceToggle({ mode: keyTrial.mode });
+      if (r && typeof r.catch === 'function') r.catch(() => { trialSession = false; });
+    } catch (_) { trialSession = false; }
+  }, 350);
+}
+function trialKeyUp() {
+  if (!keyTrial || !trialSession) return;
+  // Hold-to-talk semantics: releasing any chord key ends the session.
+  if (trialChordHeld()) return;
+  trialSession = false;
+  try {
+    const r = bolo.voiceToggle({ mode: keyTrial.mode });
+    if (r && typeof r.catch === 'function') r.catch(() => {});
+  } catch (_) {}
+}
+
 function trialTextMatch(text, target) {
   const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
   const t = words(target);
@@ -1012,6 +1052,7 @@ function endKeyTrial() {
   if (!keyTrial && !keyConfirming) return;
   keyTrial = null;
   keyConfirming = null;
+  trialSession = false;
   // The meter belongs to the trial card that is going away; dropping the
   // reference stops the level stream writing into a detached node.
   trialMeterEl = null;
@@ -1145,8 +1186,17 @@ function swapKeyPage(next) {
 // until fully released.
 window.addEventListener('keydown', (e) => {
   if (keyCapture) { keyCapture.keydown(e); return; }
-  if (typingInField(e)) return;
   const label = capLabelFor(e);
+  if (typingInField(e)) {
+    // A live trial keeps its caret in the trial box, which would otherwise
+    // silence the local chord detector exactly when the trial needs it.
+    // Track the chord here so the trial can drive its own session over IPC.
+    if (label && keyTrial && !abandoned) {
+      if (!downLabels.has(label)) downLabels.add(label);
+      trialKeyDown();
+    }
+    return;
+  }
   if (label) {
     lightKeyTest(label);
     if (!downLabels.has(label)) {
@@ -1158,8 +1208,14 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
   if (keyCapture) { try { keyCapture.keyup(e); } catch (_) {} return; }
-  if (typingInField(e)) return;
   const label = capLabelFor(e);
+  if (typingInField(e)) {
+    if (label && keyTrial) {
+      downLabels.delete(label);
+      trialKeyUp();
+    }
+    return;
+  }
   if (label) {
     unlightKeyTest(label);
     downLabels.delete(label);
@@ -1663,6 +1719,7 @@ try {
   // app, where the user cannot see them. Re-asserting focus when recording
   // begins, rather than only when the card was built, closes that gap.
   bolo.on('bolo:voice-state', (st) => {
+    lastVoiceState = (st && st.state) || 'idle';
     if (!keyTrial || abandoned) return;
     if (!st || (st.state !== 'listening' && st.state !== 'routing')) return;
     try { window.focus(); } catch (_) {}
