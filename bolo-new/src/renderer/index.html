@@ -313,6 +313,19 @@
             </div>
             <div class="setting">
               <div class="setting-text">
+                <div class="setting-label">Transcription provider</div>
+                <div class="setting-desc">Groq Whisper is the default. Sarvam Saaras is the Hindi/Hinglish option — it needs a Sarvam key below. Auto uses Sarvam when a key exists, Groq otherwise.</div>
+              </div>
+              <div class="row">
+                <select id="sttProvider" class="field" style="width:130px">
+                  <option value="groq">Groq</option>
+                  <option value="sarvam">Sarvam</option>
+                  <option value="auto">Auto</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting">
+              <div class="setting-text">
                 <div class="setting-label">Transcription model</div>
                 <div class="setting-desc" id="sttBox">—</div>
               </div>
@@ -604,6 +617,7 @@
               <select id="keyProvider" class="field" style="width:130px">
                 <option value="groq">Groq</option>
                 <option value="deepgram">Deepgram</option>
+                <option value="sarvam">Sarvam</option>
               </select>
               <input id="keyInput" type="password" class="field" placeholder="gsk_…" style="width:240px" />
               <button id="keyAdd" class="btn btn-sm">Add</button>
