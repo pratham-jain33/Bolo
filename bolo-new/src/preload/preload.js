@@ -136,7 +136,8 @@ contextBridge.exposeInMainWorld('bolo', {
   // the onboarding demo routing.
   doctorToggle: () => ipcRenderer.invoke('bolo:doctor-toggle'),
   doctorOpen: () => ipcRenderer.invoke('bolo:doctor-open'),
-  doctorPaste: (text) => ipcRenderer.invoke('bolo:doctor-paste', text),
+  doctorSave: (fields) => ipcRenderer.invoke('bolo:doctor-save', fields),
+  doctorPrint: (fields) => ipcRenderer.invoke('bolo:doctor-print', fields),
   doctorStructure: (text) => ipcRenderer.invoke('bolo:doctor-structure', text),
 
   /* ── Flat preferences ─────────────────────────────────────────────────── */
@@ -208,6 +209,7 @@ contextBridge.exposeInMainWorld('bolo', {
   setModel: (m) => ipcRenderer.invoke('bolo:set-model', m),
   setSttModel: (m) => ipcRenderer.invoke('bolo:set-stt-model', m),
   setSttProvider: (p) => ipcRenderer.invoke('bolo:set-stt-provider', p),
+  setSarvamLanguage: (l) => ipcRenderer.invoke('bolo:set-sarvam-language', l),
   setTts: (on) => ipcRenderer.invoke('bolo:set-tts', on),
   setTtsVoice: (v) => ipcRenderer.invoke('bolo:set-tts-voice', v),
   ttsVoices: () => ipcRenderer.invoke('bolo:tts-voices'),
