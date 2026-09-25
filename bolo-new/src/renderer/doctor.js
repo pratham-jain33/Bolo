@@ -129,14 +129,16 @@ pasteBtn.onclick = async () => {
   try {
     const r = await bolo.doctorPaste(text);
     if (r && r.ok) {
-      setStatus(r.systemWide === false
-        ? 'On your clipboard — press Ctrl+V in your clinic software.'
-        : 'Pasted.', false);
+      if (r.systemWide === false || r.focusError) {
+        setStatus('On your clipboard — click into your clinic software and press Ctrl+V.', false);
+      } else {
+        setStatus('Pasted.', false);
+      }
     } else {
-      setStatus('Paste failed: ' + ((r && r.error) || 'unknown'), false);
+      setStatus('Paste failed: ' + ((r && r.error) || 'unknown') + ' — the note is still above, copy it by hand.', false);
     }
   } catch (e) {
-    setStatus('Paste failed.', false);
+    setStatus('Paste failed — the note is still above, copy it by hand.', false);
   } finally {
     pasteBtn.disabled = false;
   }
@@ -192,7 +194,7 @@ bolo.on('bolo:doctor-result', (r) => {
     setTranscript(r.text);
     structureIntoTemplate(r.text);
   } else {
-    setStatus('Heard nothing — try again, a little louder.', false);
+    setStatus(r.message || 'Heard nothing — try again, a little louder.', false);
   }
 });
 
