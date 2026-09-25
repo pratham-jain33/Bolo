@@ -73,7 +73,7 @@ contextBridge.exposeInMainWorld('bolo', {
   /* ── Voice ────────────────────────────────────────────────────────────── */
   // One key, no mode argument: the intent router decides what the words were
   // for. See src/main/intent.js.
-  voiceToggle: () => ipcRenderer.invoke('bolo:voice-toggle'),
+  voiceToggle: (opts) => ipcRenderer.invoke('bolo:voice-toggle', opts || {}),
   voiceState: () => ipcRenderer.invoke('bolo:voice-state'),
   pasteLast: () => ipcRenderer.invoke('bolo:paste-last'),
 
