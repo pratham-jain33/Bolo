@@ -131,7 +131,9 @@ function feedDone(payload) {
     buffer: p.buffer || null,
     mime: p.mime || 'audio/webm',
     ms: p.ms || 0,
-    bytes: p.bytes || (p.buffer ? p.buffer.byteLength : 0)
+    bytes: p.bytes || (p.buffer ? p.buffer.byteLength : 0),
+    // 16kHz mono WAV for Sarvam chunking, when the session asked for it.
+    wav16k: p.wav16k || null
   });
 }
 
@@ -156,7 +158,11 @@ function abort(reason) {
 
 // idle -> listening. Resolves once the microphone is genuinely open and the
 // recorder is running.
-async function start() {
+// The microphone. `opts.wav16k` asks the capture renderer to also produce a
+// 16kHz mono WAV alongside the webm — the shape Sarvam's Saaras needs for
+// chunking long dictations past its ~30s per-request limit. Off by default:
+// the WAV decode costs CPU and memory the consumer path never needs.
+async function start(opts) {
   if (listening) return { ok: true, listening: true, already: true };
 
   if (!sender) {
@@ -177,7 +183,10 @@ async function start() {
   });
   inflightStart = result;
 
-  send('bolo:capture-start', { deviceId: settings.get('micDeviceId') || '' });
+  send('bolo:capture-start', {
+    deviceId: settings.get('micDeviceId') || '',
+    wav16k: !!(opts && opts.wav16k)
+  });
   return result;
 }
 
