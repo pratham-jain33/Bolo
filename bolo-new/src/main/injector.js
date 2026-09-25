@@ -48,6 +48,10 @@ using System.Runtime.InteropServices;
 public class Inj {
   [DllImport("user32.dll")]
   static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+  [DllImport("user32.dll")]
+  static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")]
+  static extern bool SetForegroundWindow(IntPtr hWnd);
   const byte VK_CONTROL = 0x11;
   const byte VK_V = 0x56;
   const uint KEYEVENTF_KEYUP = 0x0002;
@@ -56,6 +60,12 @@ public class Inj {
     keybd_event(VK_V, 0, 0, UIntPtr.Zero);
     keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
     keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+  }
+  public static string Foreground() {
+    return GetForegroundWindow().ToString();
+  }
+  public static bool Focus(long hwnd) {
+    return SetForegroundWindow(new IntPtr(hwnd));
   }
 }
 '@
@@ -67,6 +77,12 @@ while ($true) {
   try {
     if ($line -eq 'quit') { break }
     elseif ($line -eq 'paste') { [Inj]::Paste(); [Console]::Out.WriteLine('ok') }
+    elseif ($line -eq 'foreground') { [Console]::Out.WriteLine('hwnd ' + [Inj]::Foreground()) }
+    elseif ($line.StartsWith('focus ')) {
+      $hwnd = [int64]$line.Substring(6)
+      if ([Inj]::Focus($hwnd)) { Start-Sleep -Milliseconds 250; [Console]::Out.WriteLine('ok') }
+      else { [Console]::Out.WriteLine('err focus-failed') }
+    }
     else { [Console]::Out.WriteLine('err unknown-command') }
   } catch {
     [Console]::Out.WriteLine('err ' + $_.Exception.Message)
@@ -156,6 +172,7 @@ function psCall(line) {
         if (nl < 0) return;
         const line = buf.slice(0, nl).trim();
         if (line === 'ok') finish({ ok: true });
+        else if (line.startsWith('hwnd ')) finish({ ok: true, hwnd: line.slice(5).trim() });
         else if (line.startsWith('err')) finish({ ok: false, error: line.slice(3).trim() });
         else finish({ ok: false, error: line || 'unexpected-reply' });
       };
@@ -214,6 +231,44 @@ async function inject(text) {
   return { ok: true, systemWide: true, paste: 'ctrl+v-sent', chars: value.length };
 }
 
+// Which window has keyboard focus right now, as a decimal HWND string.
+// Doctor Mode captures this BEFORE its window opens, so paste can refocus the
+// clinic software the doctor was in.
+async function foregroundHwnd() {
+  if (!available()) return { ok: false, error: 'not-windows' };
+  const r = await psCall('foreground');
+  if (!r.ok || !r.hwnd || r.hwnd === '0') {
+    return { ok: false, error: (r && r.error) || 'no-foreground-window' };
+  }
+  return { ok: true, hwnd: r.hwnd };
+}
+
+// Bring the window back to the foreground. The 250ms settle lives inside the
+// sidecar, so Ctrl+V never races the focus change.
+async function focusHwnd(hwnd) {
+  if (!available()) return { ok: false, error: 'not-windows' };
+  const target = String(hwnd == null ? '' : hwnd).trim();
+  if (!target || target === '0') return { ok: false, error: 'bad-hwnd' };
+  const r = await psCall('focus ' + target);
+  return r.ok ? { ok: true } : { ok: false, error: r.error || 'focus-failed' };
+}
+
+// Focus `hwnd` first, then inject. This is the Doctor Mode paste path: the
+// doctor clicked Paste inside the Bolo window, so without the refocus the
+// note would land in Bolo itself instead of the clinic software. If the
+// refocus fails the text still lands on the clipboard — a reviewed note is
+// never silently dropped.
+async function injectInto(text, hwnd) {
+  if (hwnd) {
+    const f = await focusHwnd(hwnd);
+    if (!f.ok) {
+      const r = await inject(text);
+      return { ...r, focusError: f.error };
+    }
+  }
+  return inject(text);
+}
+
 async function dispose() {
   if (!child) return;
   const proc = child;
@@ -223,4 +278,4 @@ async function dispose() {
   try { proc.kill(); } catch (_) {}
 }
 
-module.exports = { inject, dispose, available, _internals: { psArgs, PS_SOURCE } };
+module.exports = { inject, injectInto, foregroundHwnd, focusHwnd, dispose, available, _internals: { psArgs, PS_SOURCE } };
