@@ -64,6 +64,12 @@ function resolves(fromFile, spec) {
 const REQUIRE_RE = /require\(\s*['"](\.[^'"]*)['"]\s*\)/g;
 const BOLO_RE = /^[ \t]*(?:const|let)[ \t]+bolo\b/m;
 
+// `seed-keys.js` is the one legitimate absence: it holds live credentials, is
+// gitignored, and keys.js requires it inside a try/catch with a documented
+// "no bundled keys" fallback. The require scan cannot see the try/catch, so
+// the pair is allowlisted here instead of failing every fresh clone.
+const ALLOW_MISSING = new Set(['src/main/keys.js:./seed-keys']);
+
 // Comments are stripped before the require scan, or this file would fail on its
 // own documentation. Line comments are only stripped where `//` is not preceded
 // by a quote or a colon, so a URL inside a string survives. Erring towards
@@ -125,7 +131,7 @@ for (const file of files) {
   let m;
   const missing = [];
   while ((m = REQUIRE_RE.exec(code))) {
-    if (!resolves(file, m[1])) missing.push(m[1]);
+    if (!resolves(file, m[1]) && !ALLOW_MISSING.has(name + ':' + m[1])) missing.push(m[1]);
   }
   if (missing.length) {
     failures.push('FAIL ' + name + ' — require() of a file that is not there: ' + missing.join(', '));
