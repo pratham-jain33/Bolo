@@ -137,6 +137,7 @@ contextBridge.exposeInMainWorld('bolo', {
   doctorToggle: () => ipcRenderer.invoke('bolo:doctor-toggle'),
   doctorOpen: () => ipcRenderer.invoke('bolo:doctor-open'),
   doctorPaste: (text) => ipcRenderer.invoke('bolo:doctor-paste', text),
+  doctorStructure: (text) => ipcRenderer.invoke('bolo:doctor-structure', text),
 
   /* ── Flat preferences ─────────────────────────────────────────────────── */
   setPref: (key, value) => ipcRenderer.invoke('bolo:set-pref', key, value),
