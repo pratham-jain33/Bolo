@@ -1178,6 +1178,24 @@ if (sttProviderSel) sttProviderSel.onchange = async () => {
   toast('Transcription provider: ' + r.provider);
 };
 
+// The Sarvam language select writes through its own IPC; main clamps the
+// value, so the select is re-synced from the returned setting.
+const sarvamLangSel = $('sarvamLang');
+if (sarvamLangSel) {
+  (async () => {
+    try {
+      const s = await bolo.getSettings();
+      sarvamLangSel.value = ['unknown', 'hi-in', 'en-in', 'kn-in'].includes(String(s.sarvamLanguage || '').toLowerCase())
+        ? String(s.sarvamLanguage).toLowerCase() : 'unknown';
+    } catch (_) {}
+  })();
+  sarvamLangSel.onchange = async () => {
+    const r = await bolo.setSarvamLanguage(sarvamLangSel.value);
+    sarvamLangSel.value = r.language;
+    toast('Sarvam language: ' + (r.language === 'unknown' ? 'auto-detect' : r.language));
+  };
+}
+
 $('sttTest').onclick = async () => {
   const btn = $('sttTest');
   const was = btn.textContent;
