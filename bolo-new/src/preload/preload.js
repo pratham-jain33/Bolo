@@ -195,6 +195,7 @@ contextBridge.exposeInMainWorld('bolo', {
   keysRotate: (provider) => ipcRenderer.invoke('bolo:keys-rotate', provider),
   setModel: (m) => ipcRenderer.invoke('bolo:set-model', m),
   setSttModel: (m) => ipcRenderer.invoke('bolo:set-stt-model', m),
+  setSttProvider: (p) => ipcRenderer.invoke('bolo:set-stt-provider', p),
   setTts: (on) => ipcRenderer.invoke('bolo:set-tts', on),
   setTtsVoice: (v) => ipcRenderer.invoke('bolo:set-tts-voice', v),
   ttsVoices: () => ipcRenderer.invoke('bolo:tts-voices'),
