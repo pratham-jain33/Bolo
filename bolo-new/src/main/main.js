@@ -74,6 +74,11 @@ function broadcastAll(channel, payload) {
   broadcast(channel, payload);
   sendTo(shell.getPill(), channel, payload);
   sendTo(notch.getWindow(), channel, payload);
+  // The doctor window is the only voice-state consumer that renders its own
+  // session UI. Without this it never hears 'routing' or 'doctor-result', so
+  // a stopped dictation looks stuck on "Listening…" forever and the note never
+  // arrives. (Found live: Sep 26, 2026.)
+  sendTo(doctor.getWindow(), channel, payload);
   // The intro window now hosts the whole first-run setup, including the live
   // voice demos, so it needs the same voice-state / transcript / mode /
   // ob-demo-result traffic the dashboard does. Without this the demo beats sit
