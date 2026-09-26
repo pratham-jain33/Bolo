@@ -237,6 +237,20 @@ app.whenReady().then(async () => {
   }
   check('doctor window reports closed after destroy', doctor.isOpen() === false);
 
+  /* ── the doctor window hears the voice pipeline ────────────────────── */
+  // Regression test for the Sep 26 "stuck on Listening…" bug: broadcastAll
+  // fanned voice-state / voice-level / doctor-result out to the dashboard,
+  // pill, notch and intro windows but never the doctor window, so the doctor
+  // renderer never learned a session had stopped and the note never arrived.
+  try {
+    const mainSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'main.js'), 'utf8');
+    const m = mainSrc.match(/function broadcastAll\(channel, payload\) \{([\s\S]*?)\n\}/);
+    check('broadcastAll reaches the doctor window',
+      !!m && m[1].includes('doctor.getWindow()'));
+  } catch (e) {
+    check('broadcastAll reaches the doctor window', false, e.message);
+  }
+
   /* ── dispose is safe, twice ────────────────────────────────────────── */
   await injector.dispose();
   await injector.dispose();
