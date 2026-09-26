@@ -6,3 +6,7 @@ out/
 # Live API credentials. keys.js tolerates this file being absent, so a fresh
 # clone runs keyless and takes keys through Settings instead of committing them.
 src/main/seed-keys.js
+
+# Trial build config (cap minutes). Baked by the build-trial workflow,
+# never committed — like seed-keys.js it only exists at build time.
+src/main/trial-config.json
