@@ -1,14 +1,14 @@
 name: doctor-smoke
 
-# What this is: the automated half of Doctor Mode testing. A real Windows
-# runner installs the app, runs the doctor check suite (which exercises the
-# vocabulary layer, the note template, the Copy/Save/Print outputs and the
-# doctor window itself), and then boots Doctor Mode the way a doctor
-# would — asserting it stays alive with no uncaught exceptions.
+# What this is: the automated half of Bolo Doctor testing. A real Windows
+# runner installs the app, runs the doctor check suite (structuring safety
+# contract, note shape, local history, print/share outputs, and the doctor
+# window itself), and then boots the app the way a doctor would — asserting it
+# stays alive with no uncaught exceptions.
 #
-# What it is not: a microphone, Hindi/Hinglish/Kannada speech, a real printer,
-# or a human reading the saved note. Dictation quality in the four languages
-# still needs a human voice. This catches everything below that layer.
+# What it is not: a microphone, Hinglish speech, live Sarvam/Groq keys, a real
+# printer, or WhatsApp on a doctor's machine. Dictation quality still needs a
+# human voice. This catches everything below that layer.
 
 on:
   push:
@@ -52,23 +52,23 @@ jobs:
           name: doctor-check-log
           path: bolo-new/doctor-check.log
 
-      - name: boot Doctor Mode like a doctor would
+      - name: boot Bolo Doctor like a doctor would
         timeout-minutes: 5
         run: |
-          $p = Start-Process npx -ArgumentList 'electron','.','--doctor' -WorkingDirectory "$PWD" -PassThru -RedirectStandardOutput out.log -RedirectStandardError err.log
+          $p = Start-Process npx -ArgumentList 'electron','.' -WorkingDirectory "$PWD" -PassThru -RedirectStandardOutput out.log -RedirectStandardError err.log
           Start-Sleep -Seconds 30
           if ($p.HasExited) {
-            Write-Output 'DOCTOR BOOT FAILED - the process exited on its own'
+            Write-Output 'BOLO DOCTOR BOOT FAILED - the process exited on its own'
             Get-Content err.log
             exit 1
           }
           $err = ''
           if (Test-Path err.log) { $err = Get-Content err.log -Raw }
           if ($err -match 'Uncaught Exception') {
-            Write-Output 'UNCAUGHT EXCEPTION DURING DOCTOR BOOT'
+            Write-Output 'UNCAUGHT EXCEPTION DURING BOLO DOCTOR BOOT'
             Write-Output $err
             $p.Kill()
             exit 1
           }
-          Write-Output 'doctor boot ok - alive after 30s, no uncaught exceptions'
+          Write-Output 'bolo doctor boot ok - alive after 30s, no uncaught exceptions'
           $p.Kill()
