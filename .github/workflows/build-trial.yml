@@ -22,6 +22,10 @@ on:
         description: 'Dictation minutes allowed per computer'
         required: true
         default: '15'
+      expiry_date:
+        description: 'Last full day of the trial (YYYY-MM-DD)'
+        required: true
+        default: '2026-10-31'
 
 jobs:
   build:
@@ -54,13 +58,14 @@ jobs:
           }
           $seed = @{ groq = @($env:TRIAL_GROQ_KEY); sarvam = @($env:TRIAL_SARVAM_KEY); deepgram = @() } | ConvertTo-Json -Compress
           Set-Content -Path src/main/seed-keys.js -Value "module.exports = $seed;"
-          $config = @{ trial = $true; capMinutes = [int]$env:CAP_MINUTES } | ConvertTo-Json -Compress
+          $config = @{ trial = $true; capMinutes = [int]$env:CAP_MINUTES; expiryDate = $env:EXPIRY_DATE } | ConvertTo-Json -Compress
           Set-Content -Path src/main/trial-config.json -Value $config
           Write-Output 'trial keys and config baked'
         env:
           TRIAL_GROQ_KEY: ${{ secrets.TRIAL_GROQ_KEY }}
           TRIAL_SARVAM_KEY: ${{ secrets.TRIAL_SARVAM_KEY }}
           CAP_MINUTES: ${{ inputs.cap_minutes }}
+          EXPIRY_DATE: ${{ inputs.expiry_date }}
 
       - name: trial-mode checks
         run: npx electron tools/trial-check.js
@@ -92,4 +97,5 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
           CAP_MINUTES: ${{ inputs.cap_minutes }}
+          EXPIRY_DATE: ${{ inputs.expiry_date }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
