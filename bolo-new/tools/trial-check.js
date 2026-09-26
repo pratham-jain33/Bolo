@@ -53,6 +53,19 @@ async function main() {
   trial.addUsage(-5000);
   check('negative usage is ignored', trial.status().usedMs === expectedCap + 60 * 1000);
 
+  const info = trial.expiryInfo();
+  check('expiry date is baked', !!info && typeof info.label === 'string', JSON.stringify(info));
+  if (info) {
+    check('a day after expiry counts as expired',
+      trial.isExpired(new Date(info.end.getTime() + 86400000)) === true);
+    check('a day before expiry end counts as valid',
+      trial.isExpired(new Date(info.end.getTime() - 86400000)) === false);
+  }
+  check('trial is not expired on build day', trial.isExpired() === false);
+  const st = trial.status();
+  check('status carries the expiry state',
+    st.expired === false && typeof st.expiryLabel === 'string', JSON.stringify(st));
+
   console.log(failures === 0 ? 'ALL TRIAL CHECKS PASSED' : failures + ' CHECK(S) FAILED');
   setTimeout(() => process.exit(failures === 0 ? 0 : 1), 500);
 }
