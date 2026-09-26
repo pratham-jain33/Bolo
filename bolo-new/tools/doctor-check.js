@@ -84,6 +84,14 @@ async function main() {
     /Never invent information/i.test(sys));
   check('structuring prompt renders the note in English, Latin script',
     /Latin script/i.test(sys) && /doctors write their notes/i.test(sys));
+  check('structuring prompt bans Devanagari everywhere',
+    /No Devanagari script anywhere/i.test(sys));
+  check('structuring prompt forces duration into English',
+    /a duration is NEVER left in Hindi/i.test(sys) && /"3 days", never "3 din"/.test(sys));
+  check('structuring prompt keeps drug names exactly as transcribed',
+    /keep it EXACTLY as written/i.test(sys) && /A guessed[\s\S]*drug name is a patient-safety failure/i.test(sys));
+  check('structuring prompt never changes dose/timing/duration values',
+    /their VALUES never[\s\S]*change/i.test(sys) && /never convert a unit/i.test(sys));
 
   // ── validateNote: shape coercion ──────────────────────────────────────
   const good = doctor.validateNote({
@@ -218,6 +226,34 @@ async function main() {
   const formatted = doctor.formatNote({ ...noteA, createdAt: '2026-09-26 17:00' });
   check('formatNote keeps the fixed labels',
     /Patient:/.test(formatted) && /Prescription:/.test(formatted));
+
+  // ── Print regression: the note window is shown before the system dialog ─
+  const mainDoctorSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'main', 'doctor.js'), 'utf8');
+  const printBody = (mainDoctorSrc.match(/async function printNote[\s\S]*?\n}/) || [''])[0];
+  check('printNote shows the window before the system print dialog',
+    printBody.indexOf('w.show()') !== -1 &&
+    printBody.indexOf('w.show()') < printBody.indexOf('.print('));
+
+  // ── Audio regression: the CSP must allow the recording to play ─────────
+  const doctorHtml = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'renderer', 'doctor.html'), 'utf8');
+  const csp = (doctorHtml.match(/Content-Security-Policy" content="([^"]*)"/) || ['', ''])[1];
+  check('renderer CSP has a media-src for audio playback',
+    /media-src[^;]*blob:/.test(csp) && /media-src[^;]*data:/.test(csp));
+
+  // ── Recording regression: the save verifies the file on disk ──────────
+  const recBuf = Buffer.from('fake-webm-bytes');
+  const sRec = doctor.saveNoteToHistory({ ...noteA, transcript: 'heard words' },
+    { buffer: recBuf, mime: 'audio/webm' });
+  check('history save reports whether the recording was kept',
+    sRec.ok === true && sRec.recording === true);
+  const gotRec = doctor.getNote(sRec.id);
+  check('saved note keeps the recording reference',
+    !!(gotRec && gotRec.recording));
+  const audio = doctor.getNoteAudio(sRec.id);
+  check('saved recording reads back with audio mime',
+    audio.ok === true && /^audio\//.test(audio.mime) && !!audio.data);
 
   // ── The doctor window boots clean ─────────────────────────────────────
   const errors = [];
