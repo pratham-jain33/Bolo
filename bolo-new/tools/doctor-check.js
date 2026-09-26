@@ -32,11 +32,12 @@ async function main() {
   await app.whenReady();
 
   // ── Modules load ──────────────────────────────────────────────────────
-  let doctor, voice, keys, sttSarvam;
+  let doctor, voice, keys, settings, sttSarvam;
   try {
     doctor = require('../src/main/doctor');
     voice = require('../src/main/voice');
     keys = require('../src/main/keys');
+    settings = require('../src/main/settings');
     sttSarvam = require('../src/main/stt_sarvam');
     require('../src/main/groq');
     require('../src/main/stt');
@@ -48,6 +49,30 @@ async function main() {
 
   // ── Voice state machine ───────────────────────────────────────────────
   check('voice starts idle', voice.getState().state === 'idle');
+
+  // ── Dictation shortcut: one global chord, stored and rebindable ─────────
+  const prevAccel = settings.voiceShortcut();
+  check('dictation shortcut has a default',
+    typeof prevAccel === 'string' && prevAccel.length > 0);
+  settings.setVoiceShortcut('Control+Shift+Z');
+  check('dictation shortcut round-trips through the settings store',
+    settings.voiceShortcut() === 'Control+Shift+Z');
+  settings.setVoiceShortcut(prevAccel);
+  const mainSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'main.js'), 'utf8');
+  check('main binds the dictation chord on globalShortcut',
+    /globalShortcut\.register/.test(mainSrc));
+  check('main exposes shortcut get/set IPC',
+    /bolo:shortcut-get/.test(mainSrc) && /bolo:shortcut-set/.test(mainSrc));
+  const preloadSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload', 'preload.js'), 'utf8');
+  check('preload bridges shortcutGet/shortcutSet',
+    /shortcutGet/.test(preloadSrc) && /shortcutSet/.test(preloadSrc));
+  const htmlSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'doctor.html'), 'utf8');
+  check('settings view holds the keys and the shortcut editor',
+    /view-settings/.test(htmlSrc) && /shortcutInput/.test(htmlSrc) && /sarvamKey/.test(htmlSrc));
+  check('history and settings views have a back button',
+    /historyBack/.test(htmlSrc) && /settingsBack/.test(htmlSrc));
+  check('record view shows the shortcut on the main screen',
+    /shortcutHint/.test(htmlSrc));
 
   // ── Structuring: the safety contract ──────────────────────────────────
   const sys = doctor.STRUCTURE_SYSTEM || '';

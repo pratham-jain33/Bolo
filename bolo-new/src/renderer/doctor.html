@@ -77,7 +77,7 @@
   <h1>Bolo Doctor</h1>
   <div class="nav">
     <button id="navHistory">History</button>
-    <button id="navKeys">Keys</button>
+    <button id="navSettings">Settings</button>
   </div>
 </header>
 
@@ -90,6 +90,7 @@
     <textarea id="transcript" readonly placeholder="Your dictation appears here…"></textarea>
   </div>
   <div class="hint">Speak for about 30 seconds in Hinglish: name, age, symptoms, diagnosis, and each medicine with dose, timing, and duration. You will review everything before anything is saved.</div>
+  <div class="hint" id="shortcutHint">Shortcut: loading…</div>
 </section>
 
 <!-- 2. Review (mandatory) -->
@@ -131,6 +132,9 @@
   <p class="review-title">Patient history</p>
   <input id="historySearch" placeholder="Search by patient name…">
   <div id="historyList"></div>
+  <div class="actions">
+    <button id="historyBack">Back</button>
+  </div>
 </section>
 
 <!-- 5. Detail -->
@@ -148,16 +152,23 @@
   </div>
 </section>
 
-<!-- 6. Keys -->
-<section id="view-keys" class="view">
-  <p class="review-title">Keys</p>
-  <p class="review-sub">Both stay on this machine. Sarvam transcribes your Hinglish; Groq organizes it into the note.</p>
+<!-- 6. Settings: API keys + the dictation shortcut -->
+<section id="view-settings" class="view">
+  <p class="review-title">Settings</p>
+  <p class="review-sub">Keys stay on this machine. Sarvam transcribes your Hinglish; Groq organizes it into the note.</p>
   <div class="field"><label>Sarvam key (Hinglish transcription)</label></div>
   <div class="key-row"><input id="sarvamKey" type="password" placeholder="Paste Sarvam API key"><button id="sarvamSave">Save</button></div>
   <div class="key-state" id="sarvamState"></div>
   <div class="field"><label>Groq key (note structuring)</label></div>
   <div class="key-row"><input id="groqKey" type="password" placeholder="Paste Groq API key"><button id="groqSave">Save</button></div>
   <div class="key-state" id="groqState"></div>
+  <div class="field"><label>Dictation shortcut</label></div>
+  <p class="review-sub">Press it anywhere — even with another app open — to start or stop dictation.</p>
+  <div class="key-row"><input id="shortcutInput" placeholder="Control+Shift+D"><button id="shortcutSave">Save</button></div>
+  <div class="key-state" id="shortcutState"></div>
+  <div class="actions">
+    <button id="settingsBack">Back</button>
+  </div>
 </section>
 
 <script src="doctor.js"></script>

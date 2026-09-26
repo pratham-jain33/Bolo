@@ -4,11 +4,12 @@
 // for ~30 seconds in Hinglish, reviews the structured note, approves it, and
 // saves / prints / shares it. Patient data stays on this machine.
 //
-// There is deliberately nothing else here: no global shortcuts, no onboarding,
-// no extra windows, no Spotify, no agent. Everything removed lives on the
-// archive/bolo-full branch and is described in VISION.md.
+// One global shortcut exists: the dictation chord (default Control+Shift+D),
+// which starts/stops a dictation from anywhere and is editable in Settings.
+// Everything else removed lives on the archive/bolo-full branch and is
+// described in VISION.md.
 
-const { app, ipcMain, session, shell } = require('electron');
+const { app, ipcMain, session, shell, globalShortcut } = require('electron');
 const path = require('path');
 
 const capture = require('./capture');
@@ -16,6 +17,7 @@ const audio = require('./audio');
 const voice = require('./voice');
 const doctor = require('./doctor');
 const keys = require('./keys');
+const settings = require('./settings');
 
 const preloadPath = path.join(__dirname, '..', 'preload', 'preload.js');
 const rendererDir = path.join(__dirname, '..', 'renderer');
@@ -39,12 +41,42 @@ if (!gotLock) {
     doctor.create(preloadPath, rendererDir);
     doctor.show();
 
+    // The one global shortcut: the dictation chord. Works from anywhere, so
+    // the doctor can start/stop a dictation without finding the window.
+    bindDictationShortcut(settings.voiceShortcut());
+
     registerIpc();
+  });
+
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
   });
 
   app.on('window-all-closed', () => {
     app.quit();
   });
+}
+
+// The dictation chord is a single binding tracked here so a rebind in
+// Settings unregisters exactly the old one and never leaks accelerators.
+let dictationAccelerator = null;
+
+function onDictationShortcut() {
+  doctor.show();
+  voice.toggle({ broadcast: (ch, p) => doctor.send(ch, p) }).catch(() => {});
+}
+
+function bindDictationShortcut(accelerator) {
+  if (dictationAccelerator) {
+    globalShortcut.unregister(dictationAccelerator);
+    dictationAccelerator = null;
+  }
+  if (!accelerator) return false;
+  if (globalShortcut.register(accelerator, onDictationShortcut)) {
+    dictationAccelerator = accelerator;
+    return true;
+  }
+  return false;
 }
 
 function registerIpc() {
@@ -101,6 +133,24 @@ function registerIpc() {
   });
   ipcMain.handle('bolo:keys-add', async (_e, k, provider) => keys.add(k, provider));
   ipcMain.handle('bolo:keys-remove', async (_e, i, provider) => keys.removeAt(i, provider));
+
+  // ── Dictation shortcut: the one global chord ──────────────────────────
+  ipcMain.handle('bolo:shortcut-get', async () => ({
+    accelerator: settings.voiceShortcut()
+  }));
+  ipcMain.handle('bolo:shortcut-set', async (_e, accelerator) => {
+    const next = String(accelerator || '').trim();
+    if (!next) return { ok: false, error: 'empty' };
+    const previous = dictationAccelerator || settings.voiceShortcut();
+    if (!bindDictationShortcut(next)) {
+      // The new chord is taken by another app — put the old one back so the
+      // doctor is never left with no shortcut at all.
+      bindDictationShortcut(previous);
+      return { ok: false, error: 'could-not-bind' };
+    }
+    settings.setVoiceShortcut(next);
+    return { ok: true, accelerator: next };
+  });
 
   // ── Microphones, listed through the capture window ──────────────────────
   ipcMain.handle('bolo:mic-devices', async () => capture.listDevices());

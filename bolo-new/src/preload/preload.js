@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('bolo', {
   keysAdd: (k, provider) => ipcRenderer.invoke('bolo:keys-add', k, provider),
   keysRemove: (i, provider) => ipcRenderer.invoke('bolo:keys-remove', i, provider),
 
+  /* ── Dictation shortcut: the one global chord ─────────────────────────── */
+  shortcutGet: () => ipcRenderer.invoke('bolo:shortcut-get'),
+  shortcutSet: (accelerator) => ipcRenderer.invoke('bolo:shortcut-set', accelerator),
+
   /* ── Microphones, listed through the capture window ──────────────────── */
   micDevices: () => ipcRenderer.invoke('bolo:mic-devices'),
 

@@ -1,11 +1,11 @@
 // Bolo Doctor renderer — the one screen.
 //
-// Views: record -> review (mandatory) -> done; plus history, detail, keys.
+// Views: record -> review (mandatory) -> done; plus history, detail, settings.
 // Nothing is saved or printed until the doctor approves in review.
 
 const $ = (id) => document.getElementById(id);
 
-const VIEWS = ['record', 'review', 'done', 'history', 'detail', 'keys'];
+const VIEWS = ['record', 'review', 'done', 'history', 'detail', 'settings'];
 
 function showView(name) {
   for (const v of VIEWS) $('view-' + v).classList.toggle('active', v === name);
@@ -345,9 +345,11 @@ $('detailPrint').onclick = () => detailNote && printNote(detailNote);
 $('detailShare').onclick = () => detailNote && shareNote(detailNote);
 $('detailCopy').onclick = () => detailNote && copyNote(detailNote);
 
-// ── Keys ─────────────────────────────────────────────────────────────────
+// ── Settings: keys + the dictation shortcut ──────────────────────────────
 
-$('navKeys').onclick = () => { refreshKeyStates(); showView('keys'); };
+$('navSettings').onclick = () => { refreshKeyStates(); loadShortcut(); showView('settings'); };
+$('settingsBack').onclick = () => showView('record');
+$('historyBack').onclick = () => showView('record');
 
 $('sarvamSave').onclick = () => saveKey('sarvam', $('sarvamKey'));
 $('groqSave').onclick = () => saveKey('groq', $('groqKey'));
@@ -383,4 +385,41 @@ function keyLine(info, name) {
            : 'No ' + name + ' key saved.';
 }
 
+// The dictation shortcut, shown on the main screen and editable in Settings.
+async function loadShortcut() {
+  try {
+    const r = await bolo.shortcutGet();
+    const accel = (r && r.accelerator) || '';
+    $('shortcutInput').value = accel;
+    updateShortcutHint(accel);
+  } catch (_) {
+    updateShortcutHint('');
+  }
+}
+
+function updateShortcutHint(accel) {
+  $('shortcutHint').textContent = accel
+    ? 'Shortcut: ' + accel + ' — press it anywhere to start or stop dictation.'
+    : 'No dictation shortcut set — open Settings to add one.';
+}
+
+$('shortcutSave').onclick = async () => {
+  const v = $('shortcutInput').value.trim();
+  if (!v) return;
+  try {
+    const r = await bolo.shortcutSet(v);
+    if (r && r.ok) {
+      updateShortcutHint(r.accelerator);
+      $('shortcutState').textContent = 'Saved.';
+    } else {
+      $('shortcutState').textContent =
+        'Could not bind that shortcut — it may be taken by another app. Try another.';
+      await loadShortcut();
+    }
+  } catch (e) {
+    $('shortcutState').textContent = 'Could not save the shortcut.';
+  }
+};
+
 refreshKeyStates();
+loadShortcut();
