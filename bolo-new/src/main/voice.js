@@ -11,6 +11,7 @@ const settings = require('./settings');
 const keys = require('./keys');
 const stt = require('./stt');
 const sttSarvam = require('./stt_sarvam');
+const trial = require('./trial');
 
 let state = 'idle'; // 'idle' | 'listening' | 'routing'
 
@@ -75,6 +76,8 @@ async function toggle({ broadcast } = {}) {
     lastRecording = (clip && clip.ok && clip.buffer && clip.bytes)
       ? { buffer: clip.buffer, mime: clip.mime || 'audio/webm' }
       : null;
+    // Trial builds: every finished dictation counts against the per-computer cap.
+    if (clip && clip.ms) trial.addUsage(clip.ms);
     const t = await transcribe(clip);
     state = 'idle';
     emit('bolo:voice-state', getState());
@@ -93,6 +96,11 @@ async function toggle({ broadcast } = {}) {
   }
 
   // idle -> listening
+  // Trial builds: the per-computer dictation cap is enforced here, so the mic
+  // button and the global shortcut share the one choke point.
+  if (!trial.canStart()) {
+    return { ...getState(), error: 'trial-exhausted' };
+  }
   state = 'listening';
   emit('bolo:voice-state', getState());
   const started = await audio.start({ wav16k: true });
