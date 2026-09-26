@@ -82,6 +82,8 @@ async function main() {
     /uncertain.*true/i.test(sys));
   check('structuring prompt forbids inventing information',
     /Never invent information/i.test(sys));
+  check('structuring prompt renders the note in English, Latin script',
+    /Latin script/i.test(sys) && /doctors write their notes/i.test(sys));
 
   // ── validateNote: shape coercion ──────────────────────────────────────
   const good = doctor.validateNote({
