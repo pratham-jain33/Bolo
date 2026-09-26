@@ -74,9 +74,20 @@ const STRUCTURE_SYSTEM = [
   '(Hindi-English mix as spoken in India) and may include medical terms.',
   'Output ONLY a JSON object, no other text.',
   '',
+  'OUTPUT LANGUAGE — English, Latin script, NO exceptions. Indian doctors write',
+  'notes in English, so every field of this JSON must read like a doctor wrote it.',
+  'No Devanagari script anywhere: not in symptoms, not in timing, not in duration.',
+  'Examples: "3 din se bukhar hai" becomes "Fever for 3 days";',
+  '"raat ko sone se pehle" becomes "at bedtime"; a duration of "3 din" becomes',
+  '"3 days" — a duration is NEVER left in Hindi.',
+  '',
   'SAFETY RULES (non-negotiable):',
-  '- NEVER silently correct, normalize, or "fix" a drug name, dose, timing, or duration.',
-  '  If the transcript says "paracitamol", keep "paracitamol" exactly as written.',
+  '- NEVER correct, normalize, translate, or "fix" a drug name. If the transcript',
+  '  says "paracitamol" or "setty rhizine", keep it EXACTLY as written. A guessed',
+  '  drug name is a patient-safety failure; the doctor corrects names in review.',
+  '- Dose, timing, and duration are written in English, but their VALUES never',
+  '  change: never alter a number, never convert a unit (mg stays mg), never add',
+  '  a unit that was not said, never invent a value.',
   '- If a drug name, dose, timing, or duration is unclear, ambiguous, or you are',
   '  not fully certain, keep it EXACTLY as transcribed and set "uncertain": true',
   '  with a short "uncertain_reason", e.g. "drug name unclear in audio".',
@@ -96,17 +107,14 @@ const STRUCTURE_SYSTEM = [
   '}',
   '',
   'Field rules:',
-  'OUTPUT LANGUAGE — English, Latin script only. Indian doctors write their notes',
-  'in English, so the finished note must read like one.',
-  '- Transliterate and translate the Hinglish naturally: "3 din se bukhar hai"',
-  '  becomes "Fever for 3 days"; "raat ko sone se pehle" becomes "at bedtime".',
-  '- Medicine names, doses, timings, and durations are NOT translated or',
-  '  normalized — they stay EXACTLY as transcribed, per the safety rules above.',
   '- "symptoms": what the patient reported, and any history mentioned.',
   '- "diagnosis": the doctor\'s assessment.',
-  '- "prescription": one object per medicine mentioned. Split dose ("650 mg"),',
-  '  timing ("twice daily after food"), and duration ("3 days") when stated.',
-  '  Keep each part exactly as dictated; never add units that were not said.',
+  '- "prescription": one object per medicine mentioned.',
+  '  - "medicine": the drug name EXACTLY as transcribed. Never fix it.',
+  '  - "dose": as said ("650 mg").',
+  '  - "timing": in English ("twice daily", "at bedtime").',
+  '  - "duration": ALWAYS in English ("3 days", never "3 din").',
+  '  - Never add units that were not said; never change a number.',
   '- "age": as said ("45", "45 years").'
 ].join('\n');
 
@@ -249,13 +257,22 @@ function saveNoteToHistory(note, recording) {
     const dir = path.join(path.dirname(historyFile()), 'recordings');
     fs.mkdirSync(dir, { recursive: true });
     const file = entry.id + rec.ext;
-    fs.writeFileSync(path.join(dir, file), rec.buffer);
+    const abs = path.join(dir, file);
+    fs.writeFileSync(abs, rec.buffer);
     entry.recording = 'recordings/' + file;
+    // Verify the bytes actually landed: the detail view reports this, so a
+    // failed write is visible instead of a silent 0:00 player.
+    try {
+      entry.recordingSaved = fs.statSync(abs).size > 0;
+    } catch (_) {
+      entry.recordingSaved = false;
+    }
+    if (!entry.recordingSaved) entry.recording = null;
   }
   const arr = readHistory();
   arr.push(entry);
   writeHistory(arr);
-  return { ok: true, id: entry.id };
+  return { ok: true, id: entry.id, recording: !!entry.recording };
 }
 
 const REC_EXT = {
@@ -395,17 +412,24 @@ function buildPrintHtml(note) {
     '</body></html>';
 }
 
-// Print the approved note through the system print dialog, from a hidden
-// window carrying only the clean note — not the app UI. A cancelled dialog
-// is 'cancelled', not a failure.
+// Print the approved note through the system print dialog, from a dedicated
+// window carrying only the clean note — not the app UI. The window is SHOWN
+// before printing: on Windows the system dialog does not reliably appear (the
+// print call hangs) for a window that was never visible, which made Print look
+// dead. The brief flash of the clean note doubles as a print preview.
+// A cancelled dialog is 'cancelled', not a failure.
 async function printNote(note) {
   const html = buildPrintHtml(note);
   const w = new BrowserWindow({
     show: false,
+    width: 720,
+    height: 860,
     webPreferences: { contextIsolation: true, nodeIntegration: false }
   });
   try {
     await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    w.show();
+    w.focus();
     await w.webContents.print({ silent: false, printBackground: true });
     return { ok: true };
   } catch (e) {
