@@ -120,6 +120,13 @@ function registerIpc() {
       return { ok: false, error: (e && e.message) || String(e) };
     }
   });
+  ipcMain.handle('bolo:history-update', async (_e, id, note) => {
+    try {
+      return doctor.updateNoteInHistory(id, note);
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
+  });
   ipcMain.handle('bolo:history-audio', async (_e, id) => {
     try {
       return doctor.getNoteAudio(id);
