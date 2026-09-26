@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('bolo', {
   historyGet: (id) => ipcRenderer.invoke('bolo:history-get', id),
   historySave: (note) => ipcRenderer.invoke('bolo:history-save', note),
   historyAudio: (id) => ipcRenderer.invoke('bolo:history-audio', id),
+  historyUpdate: (id, note) => ipcRenderer.invoke('bolo:history-update', id, note),
 
   /* ── Outputs ────────────────────────────────────────────────────────── */
   doctorPrint: (note) => ipcRenderer.invoke('bolo:doctor-print', note),
