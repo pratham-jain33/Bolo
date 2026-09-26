@@ -18,6 +18,7 @@ const voice = require('./voice');
 const doctor = require('./doctor');
 const keys = require('./keys');
 const settings = require('./settings');
+const trial = require('./trial');
 
 const preloadPath = path.join(__dirname, '..', 'preload', 'preload.js');
 const rendererDir = path.join(__dirname, '..', 'renderer');
@@ -82,6 +83,12 @@ function bindDictationShortcut(accelerator) {
 function registerIpc() {
   // ── Voice ──────────────────────────────────────────────────────────────
   // The doctor window is the only consumer, so it receives every voice event.
+  // ── Trial mode: per-computer dictation cap ─────────────────────────────
+  ipcMain.handle('bolo:trial-status', async () => {
+    try { return trial.status(); }
+    catch (e) { return { trial: false }; }
+  });
+
   ipcMain.handle('bolo:doctor-toggle', async () => {
     try {
       return await voice.toggle({ broadcast: (ch, p) => doctor.send(ch, p) });
