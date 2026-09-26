@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld('bolo', {
   shortcutGet: () => ipcRenderer.invoke('bolo:shortcut-get'),
   shortcutSet: (accelerator) => ipcRenderer.invoke('bolo:shortcut-set', accelerator),
 
+  /* ── Trial mode ─────────────────────────────────────────────────────── */
+  trialStatus: () => ipcRenderer.invoke('bolo:trial-status'),
+
   /* ── Microphones, listed through the capture window ──────────────────── */
   micDevices: () => ipcRenderer.invoke('bolo:mic-devices'),
 
