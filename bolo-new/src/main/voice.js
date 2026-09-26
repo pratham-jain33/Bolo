@@ -14,8 +14,21 @@ const sttSarvam = require('./stt_sarvam');
 
 let state = 'idle'; // 'idle' | 'listening' | 'routing'
 
+// The raw audio of the last finished dictation: { buffer, mime }. Held in
+// memory only. The history-save path takes it (and clears it); a discarded
+// dictation is simply overwritten by the next one, so nothing is written
+// for notes the doctor never approved.
+let lastRecording = null;
+
 function getState() {
   return { state };
+}
+
+// Take the pending recording, clearing the slot. Called once per save.
+function takeRecording() {
+  const r = lastRecording;
+  lastRecording = null;
+  return r;
 }
 
 // The recorded clip to text. Never throws: every failure comes back as a
@@ -58,7 +71,11 @@ async function toggle({ broadcast } = {}) {
     const clipPromise = audio.stop();
     state = 'routing';
     emit('bolo:voice-state', getState());
-    const t = await transcribe(await clipPromise);
+    const clip = await clipPromise;
+    lastRecording = (clip && clip.ok && clip.buffer && clip.bytes)
+      ? { buffer: clip.buffer, mime: clip.mime || 'audio/webm' }
+      : null;
+    const t = await transcribe(clip);
     state = 'idle';
     emit('bolo:voice-state', getState());
     const result = {
@@ -87,4 +104,4 @@ async function toggle({ broadcast } = {}) {
   return { ...getState(), started };
 }
 
-module.exports = { toggle, getState, transcribe };
+module.exports = { toggle, getState, transcribe, takeRecording };

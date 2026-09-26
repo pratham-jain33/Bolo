@@ -214,8 +214,10 @@ function escapeHtml(s) {
 }
 
 function showDone(note) {
-  $('doneSub').textContent = 'Approved and saved to patient history.';
+  $('doneSub').textContent = 'Approved and saved to patient history. Tap the note to see full details.';
   $('doneCard').innerHTML = noteCardHtml(note);
+  $('doneCard').style.cursor = 'pointer';
+  $('doneCard').onclick = () => showDetail(approved.id);
   showView('done');
 }
 
@@ -328,7 +330,36 @@ async function showDetail(id) {
       detailRow('Diagnosis', n.diagnosis) +
       '<div class="detail-row"><div class="dl">Prescription</div>' +
       '<table class="rx"><tr><th>#</th><th>Medicine</th><th>Dose</th><th>Timing</th><th>Duration</th></tr>' +
-      rxRows + '</table></div>';
+      rxRows + '</table></div>' +
+      detailRow('What was heard', n.transcript);
+    // The original recording, when this note has one. Notes saved before
+    // recordings existed simply show the transcript without a player.
+    if (n.recording) {
+      const wrap = document.createElement('div');
+      wrap.className = 'detail-row';
+      const label = document.createElement('div');
+      label.className = 'dl';
+      label.textContent = 'Original recording';
+      const player = document.createElement('audio');
+      player.controls = true;
+      player.preload = 'none';
+      player.style.width = '100%';
+      player.style.marginTop = '4px';
+      wrap.appendChild(label);
+      wrap.appendChild(player);
+      $('detailBody').appendChild(wrap);
+      const markUnavailable = () => { label.textContent = 'Original recording (unavailable)'; };
+      try {
+        const r = await bolo.historyAudio(n.id);
+        if (r && r.ok && r.data) {
+          player.src = 'data:' + (r.mime || 'audio/webm') + ';base64,' + r.data;
+        } else {
+          markUnavailable();
+        }
+      } catch (_) {
+        markUnavailable();
+      }
+    }
     showView('detail');
   } catch (e) {
     alert('Could not open the note.');

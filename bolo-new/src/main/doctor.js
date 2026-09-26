@@ -227,8 +227,11 @@ function getNote(id) {
 }
 
 // Save an APPROVED note. The renderer only calls this after the doctor taps
-// approve; there is no other path that writes to the history.
-function saveNoteToHistory(note) {
+// approve; there is no other path that writes to the history. `recording` is
+// the raw audio of the dictation that produced this note ({ buffer, mime }),
+// taken from voice.takeRecording() by the save handler — never for a note the
+// doctor discarded, because a discard never reaches this function.
+function saveNoteToHistory(note, recording) {
   const n = (note && typeof note === 'object') ? note : {};
   const entry = {
     id: 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
@@ -238,12 +241,69 @@ function saveNoteToHistory(note) {
     symptoms: str(n.symptoms),
     diagnosis: str(n.diagnosis),
     prescription: Array.isArray(n.prescription) ? n.prescription.map(coerceItem) : [],
-    transcript: str(n.transcript)
+    transcript: str(n.transcript),
+    recording: null
   };
+  const rec = normalizeRecording(recording);
+  if (rec) {
+    const dir = path.join(path.dirname(historyFile()), 'recordings');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = entry.id + rec.ext;
+    fs.writeFileSync(path.join(dir, file), rec.buffer);
+    entry.recording = 'recordings/' + file;
+  }
   const arr = readHistory();
   arr.push(entry);
   writeHistory(arr);
   return { ok: true, id: entry.id };
+}
+
+const REC_EXT = {
+  'audio/webm': '.webm',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/mp4': '.m4a',
+  'audio/mpeg': '.mp3'
+};
+
+// The clip buffer arrives from the capture window over IPC, so it may be a
+// Buffer, ArrayBuffer, or typed array. Anything else (or empty) means there
+// is no usable recording — the note still saves, just without audio.
+function normalizeRecording(rec) {
+  if (!rec || !rec.buffer) return null;
+  let buf;
+  try {
+    buf = Buffer.isBuffer(rec.buffer) ? rec.buffer : Buffer.from(rec.buffer);
+  } catch (_) {
+    return null;
+  }
+  if (!buf || buf.length === 0) return null;
+  const mime = String(rec.mime || 'audio/webm');
+  return { buffer: buf, mime, ext: REC_EXT[mime] || '.webm' };
+}
+
+// The stored audio for a note, as base64 for the renderer. Old notes saved
+// before recordings existed simply report no-recording.
+function getNoteAudio(id) {
+  const n = getNote(id);
+  if (!n || !n.recording) return { ok: false, error: 'no-recording' };
+  const base = path.resolve(path.dirname(historyFile()));
+  const p = path.resolve(base, n.recording);
+  if (p !== base && !p.startsWith(base + path.sep)) return { ok: false, error: 'bad-path' };
+  try {
+    const data = fs.readFileSync(p);
+    return { ok: true, mime: mimeOfRecording(p), data: data.toString('base64') };
+  } catch (_) {
+    return { ok: false, error: 'unreadable' };
+  }
+}
+
+function mimeOfRecording(p) {
+  const ext = path.extname(p).toLowerCase();
+  for (const [mime, e] of Object.entries(REC_EXT)) {
+    if (e === ext) return mime;
+  }
+  return 'audio/webm';
 }
 
 function stampOf(d) {
@@ -359,6 +419,6 @@ async function printNote(note) {
 module.exports = {
   create, getWindow, isOpen, show, send,
   structureNote, validateNote, blankNote, coerceItem, STRUCTURE_SYSTEM, NOTE_FIELDS,
-  listNotes, searchNotes, getNote, saveNoteToHistory, historyFile,
+  listNotes, searchNotes, getNote, saveNoteToHistory, getNoteAudio, historyFile,
   formatNote, shareText, buildPrintHtml, printNote, stampOf
 };

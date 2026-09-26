@@ -165,6 +165,36 @@ async function main() {
     got && got.patient_name === 'Ramesh Gupta' && got.prescription.length === 1 &&
     got.prescription[0].timing === 'twice daily');
   check('history get with unknown id returns null', doctor.getNote('nope') === null);
+
+  // ── Recordings: stored per note, playable from the detail view ──────────
+  check('voice exposes takeRecording', typeof voice.takeRecording === 'function');
+  const recNote = {
+    transcript: 't3', patient_name: 'Rec Test', age: '30',
+    symptoms: 'cough', diagnosis: 'cold', prescription: []
+  };
+  const sR = doctor.saveNoteToHistory(recNote, { buffer: Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), mime: 'audio/webm' });
+  check('history save with a recording returns ok with an id', sR.ok && !!sR.id);
+  const gotR = doctor.getNote(sR.id);
+  check('saved note references its recording file',
+    gotR && typeof gotR.recording === 'string' && /\.webm$/.test(gotR.recording));
+  check('recording file exists on disk',
+    gotR && fs.existsSync(path.join(path.dirname(doctor.historyFile()), gotR.recording)));
+  const aud = doctor.getNoteAudio(sR.id);
+  check('recording audio reads back as base64',
+    aud && aud.ok === true && aud.mime === 'audio/webm' && typeof aud.data === 'string' && aud.data.length > 0);
+  check('notes saved without a recording report no-recording',
+    doctor.getNoteAudio(sA.id).ok === false);
+  check('unknown note id reports no-recording',
+    doctor.getNoteAudio('nope').ok === false);
+  check('main exposes the history-audio IPC', /bolo:history-audio/.test(mainSrc));
+  check('preload bridges historyAudio', /historyAudio/.test(preloadSrc));
+  const rendererSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'doctor.js'), 'utf8');
+  check('detail view shows the full transcript',
+    /What was heard/.test(rendererSrc));
+  check('detail view offers the original recording player',
+    /Original recording/.test(rendererSrc));
+  check('done-screen note card opens the detail view',
+    /\$\('doneCard'\)\.onclick/.test(rendererSrc) && /showDetail\(approved\.id\)/.test(rendererSrc));
   // The file is one local JSON file.
   const raw = fs.readFileSync(doctor.historyFile(), 'utf8');
   check('history persists as one local JSON file', (() => {

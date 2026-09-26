@@ -105,7 +105,17 @@ function registerIpc() {
   ipcMain.handle('bolo:history-get', async (_e, id) => doctor.getNote(id));
   ipcMain.handle('bolo:history-save', async (_e, note) => {
     try {
-      return doctor.saveNoteToHistory(note);
+      // The audio of the dictation that produced this note. takeRecording()
+      // clears the slot, so a discarded dictation never leaves a file behind.
+      const recording = voice.takeRecording();
+      return doctor.saveNoteToHistory(note, recording);
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
+  });
+  ipcMain.handle('bolo:history-audio', async (_e, id) => {
+    try {
+      return doctor.getNoteAudio(id);
     } catch (e) {
       return { ok: false, error: (e && e.message) || String(e) };
     }
