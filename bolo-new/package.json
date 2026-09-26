@@ -1,8 +1,8 @@
 {
   "name": "bolo",
-  "productName": "bolo",
+  "productName": "Bolo Doctor",
   "version": "0.0.1",
-  "description": "bolo - original voice interface prototype. No bolo code or assets included.",
+  "description": "Bolo Doctor - post-consult voice notes for Indian solo clinics.",
   "main": "./src/main/main.js",
   "scripts": {
     "start": "electron .",
@@ -32,8 +32,7 @@
     "asar": true
   },
   "dependencies": {
-    "electron-store": "^8.1.0",
-    "uiohook-napi": "^1.5.5"
+    "electron-store": "^8.1.0"
   },
   "devDependencies": {
     "electron": "^33.0.0",
