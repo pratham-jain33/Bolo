@@ -35,7 +35,8 @@ async function toggle() {
   try {
     const r = await bolo.doctorToggle();
     if (r && r.state === 'listening') setStatus('Listening… tap the mic to stop.', true);
-    else if (r && r.error === 'trial-exhausted') setStatus('This trial\u2019s dictation time is used up on this computer.', false);
+    else if (r && r.error === 'trial-ended') setStatus('This trial ended on ' + trialExpiryLabel + '. Thanks for trying Bolo Doctor.', false);
+    else if (r && r.error === 'trial-exhausted') setStatus('Trial dictation time is used up on this computer.', false);
     else if (r && r.error) setStatus('Could not start: ' + r.error, false);
   } catch (e) {
     setStatus('Could not start dictation.', false);
@@ -59,24 +60,102 @@ function fmtTrialMs(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
+// The baked expiry label (e.g. "31 Oct 2026"), for the trial-ended message.
+let trialExpiryLabel = '';
 async function refreshTrial() {
   try {
     const t = await bolo.trialStatus();
     const el = $('trialLine');
     if (t && t.trial) {
+      trialExpiryLabel = t.expiryLabel || '';
       el.style.display = '';
-      el.textContent = t.exhausted
-        ? 'Trial version — dictation time is used up on this computer.'
-        : 'Trial version — ' + fmtTrialMs(t.remainingMs) + ' of ' + fmtTrialMs(t.capMs) +
+      if (t.expired) {
+        el.textContent = 'This trial ended on ' + trialExpiryLabel + '. Thanks for trying Bolo Doctor.';
+      } else if (t.exhausted) {
+        el.textContent = 'Trial version — dictation time is used up on this computer.';
+      } else {
+        el.textContent = 'Trial version — ' + fmtTrialMs(t.remainingMs) + ' of ' + fmtTrialMs(t.capMs) +
           ' dictation left on this computer.';
+      }
       // Keys are baked into the trial: nothing to paste, nothing to clear.
       $('keyFields').style.display = 'none';
       $('trialKeyNote').style.display = '';
+      // The demo button lives only in trial builds, and retires with the trial.
+      $('demoBtn').style.display = t.expired ? 'none' : '';
     } else {
       el.style.display = 'none';
+      $('demoBtn').style.display = 'none';
     }
   } catch (_) { /* keyless dev builds: stay silent */ }
 }
+
+// ── Demo mode (trial only): a canned dictation that plays with a typing ──
+// animation and fills a sample note. Makes ZERO API calls (no Sarvam, no
+// Groq), needs no mic, and never touches the trial minute allowance — it
+// bypasses voice entirely and goes straight to the mandatory review screen.
+const DEMO_TRANSCRIPT = 'Patient ka naam Ramesh Gupta, age 52 saal. Teen din se bukhar hai, gala dard aur halki khansi. Koi allergy nahi hai. Diagnosis viral fever. Dolo 650, ek goli subah shaam khane ke baad, teen din tak. Azithral 500, ek goli roz, teen din tak.';
+const DEMO_NOTE = {
+  patient_name: 'Ramesh Gupta',
+  age: '52',
+  symptoms: 'Fever for 3 days, sore throat, mild cough. No known allergies.',
+  diagnosis: 'Viral fever',
+  prescription: [
+    { medicine: 'Dolo 650', dose: '1 tablet', timing: 'twice daily after food', duration: '3 days' },
+    { medicine: 'Azithral 500', dose: '1 tablet', timing: 'once daily', duration: '3 days' }
+  ]
+};
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+function typeInto(el, text, perCharMs) {
+  return new Promise((resolve) => {
+    el.value = '';
+    let i = 0;
+    const tick = () => {
+      i++;
+      el.value = text.slice(0, i);
+      if (i < text.length) setTimeout(tick, perCharMs);
+      else resolve();
+    };
+    tick();
+  });
+}
+
+let demoRunning = false;
+$('demoBtn').onclick = async () => {
+  if (demoRunning || busy) return;
+  demoRunning = true;
+  $('demoBtn').disabled = true;
+  $('micBtn').disabled = true;
+  try {
+    showView('record');
+    $('transcript').value = '';
+    setStatus('Demo — no trial minutes used, no mic needed.', true);
+    await typeInto($('transcript'), DEMO_TRANSCRIPT, 16);
+    current = { transcript: DEMO_TRANSCRIPT, ...DEMO_NOTE };
+    fillReview({ patient_name: '', age: '', symptoms: '', diagnosis: '', prescription: [] });
+    $('rxList').innerHTML = '';
+    showView('review');
+    setStatus('Demo note — review every field, then approve it like a real one.', false);
+    await typeInto($('fName'), DEMO_NOTE.patient_name, 40);
+    await typeInto($('fAge'), DEMO_NOTE.age, 60);
+    await typeInto($('fSymptoms'), DEMO_NOTE.symptoms, 14);
+    await typeInto($('fDiagnosis'), DEMO_NOTE.diagnosis, 40);
+    for (const it of DEMO_NOTE.prescription) {
+      const row = addRxRow({}, $('rxList').children.length);
+      await sleep(300);
+      const inputs = row.querySelectorAll('input[data-key]');
+      const vals = [it.medicine, it.dose, it.timing, it.duration];
+      for (let i = 0; i < inputs.length; i++) {
+        await typeInto(inputs[i], vals[i] || '', 28);
+      }
+    }
+  } finally {
+    demoRunning = false;
+    $('demoBtn').disabled = false;
+    $('micBtn').disabled = false;
+  }
+};
 
 bolo.on('bolo:doctor-result', (r) => {
   if (!r) return;
@@ -164,6 +243,7 @@ function addRxRow(it, idx) {
   actions.appendChild(del);
   row.appendChild(actions);
   $('rxList').appendChild(row);
+  return row;
 }
 
 $('rxAdd').onclick = () => addRxRow({}, $('rxList').children.length);
@@ -196,19 +276,34 @@ function readReview() {
   };
 }
 
+// P2: editing a note that was already approved. editingId is null for a
+// fresh dictation; set when the doctor taps "Edit note" on a saved note.
+let editingId = null;
+
 $('approveBtn').onclick = async () => {
   const note = readReview();
   $('approveBtn').disabled = true;
   try {
-    const r = await bolo.historySave(note);
-    if (r && r.ok) {
-      approved = { ...note, id: r.id, createdAt: new Date().toLocaleString() };
-      showDone(approved);
+    if (editingId) {
+      const r = await bolo.historyUpdate(editingId, note);
+      if (r && r.ok) {
+        approved = { ...note, id: editingId, createdAt: (detailNote && detailNote.createdAt) || new Date().toLocaleString() };
+        editingId = null;
+        showDone(approved);
+      } else {
+        alert('Update failed: ' + ((r && r.error) || 'unknown'));
+      }
     } else {
-      alert('Save failed: ' + ((r && r.error) || 'unknown'));
+      const r = await bolo.historySave(note);
+      if (r && r.ok) {
+        approved = { ...note, id: r.id, createdAt: new Date().toLocaleString() };
+        showDone(approved);
+      } else {
+        alert('Save failed: ' + ((r && r.error) || 'unknown'));
+      }
     }
   } catch (e) {
-    alert('Save failed.');
+    alert(editingId ? 'Update failed.' : 'Save failed.');
   } finally {
     $('approveBtn').disabled = false;
   }
@@ -216,9 +311,26 @@ $('approveBtn').onclick = async () => {
 
 $('discardBtn').onclick = () => {
   current = null;
+  editingId = null;
   $('transcript').value = '';
   showView('record');
   setStatus('Ready. Tap the mic after the patient leaves.', false);
+};
+
+$('detailEdit').onclick = () => {
+  if (!detailNote) return;
+  editingId = detailNote.id;
+  current = {
+    transcript: detailNote.transcript || '',
+    patient_name: detailNote.patient_name || '',
+    age: detailNote.age || '',
+    symptoms: detailNote.symptoms || '',
+    diagnosis: detailNote.diagnosis || '',
+    prescription: detailNote.prescription || []
+  };
+  fillReview(current);
+  showView('review');
+  setStatus('Editing a saved note — change anything, then approve to save.', false);
 };
 
 // ── Done ─────────────────────────────────────────────────────────────────
@@ -250,6 +362,7 @@ function showDone(note) {
 $('doneNew').onclick = () => {
   current = null;
   approved = null;
+  editingId = null;
   $('transcript').value = '';
   showView('record');
   setStatus('Ready. Tap the mic after the patient leaves.', false);
