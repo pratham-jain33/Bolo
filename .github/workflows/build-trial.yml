@@ -1,0 +1,95 @@
+name: build-trial
+
+# Trial build for doctors: a portable Windows .exe with API keys baked in and
+# a per-computer dictation cap. Trigger manually when a new trial exe is needed
+# to send over WhatsApp. Produces a GitHub Release with a stable download link.
+#
+# The keys come from repo secrets (TRIAL_GROQ_KEY, TRIAL_SARVAM_KEY) and are
+# baked into src/main/seed-keys.js at build time — the file is gitignored and
+# never committed. The cap config goes into src/main/trial-config.json.
+# Honest limitation: baked keys can be extracted from the packaged app by
+# anyone who unpacks it. The per-computer dictation cap is what bounds the API
+# cost exposure, so use keys you can rotate after the trial.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (must be new, e.g. v0.1-trial.2)'
+        required: true
+        default: 'v0.1-trial.1'
+      cap_minutes:
+        description: 'Dictation minutes allowed per computer'
+        required: true
+        default: '5'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: bolo-new
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: bolo-new/package-lock.json
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: static checks (syntax + require graph)
+        run: npm run check
+
+      - name: bake trial keys and config (never committed)
+        run: |
+          if (-not $env:TRIAL_GROQ_KEY -or -not $env:TRIAL_SARVAM_KEY) {
+            Write-Output 'TRIAL_GROQ_KEY / TRIAL_SARVAM_KEY secrets are missing - add them in repo Settings > Secrets'
+            exit 1
+          }
+          $seed = @{ groq = @($env:TRIAL_GROQ_KEY); sarvam = @($env:TRIAL_SARVAM_KEY); deepgram = @() } | ConvertTo-Json -Compress
+          Set-Content -Path src/main/seed-keys.js -Value "module.exports = $seed;"
+          $config = @{ trial = $true; capMinutes = [int]$env:CAP_MINUTES } | ConvertTo-Json -Compress
+          Set-Content -Path src/main/trial-config.json -Value $config
+          Write-Output 'trial keys and config baked'
+        env:
+          TRIAL_GROQ_KEY: ${{ secrets.TRIAL_GROQ_KEY }}
+          TRIAL_SARVAM_KEY: ${{ secrets.TRIAL_SARVAM_KEY }}
+          CAP_MINUTES: ${{ inputs.cap_minutes }}
+
+      - name: trial-mode checks
+        run: npx electron tools/trial-check.js
+
+      - name: build portable exe
+        run: npx electron-builder --win portable --x64
+
+      - name: name the trial exe
+        run: |
+          $exe = Get-ChildItem -Path dist -Filter *.exe -File | Select-Object -First 1
+          if (-not $exe) { Write-Output 'no exe was produced'; exit 1 }
+          $named = "BoloDoctor-Trial-$env:TAG.exe"
+          Copy-Item $exe.FullName (Join-Path dist $named)
+          Write-Output "built $named"
+        env:
+          TAG: ${{ inputs.tag }}
+
+      - name: upload trial exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoloDoctor-Trial-${{ inputs.tag }}
+          path: bolo-new/dist/BoloDoctor-Trial-${{ inputs.tag }}.exe
+
+      - name: publish GitHub release (stable download link)
+        run: |
+          gh release create $env:TAG "dist/BoloDoctor-Trial-$env:TAG.exe" `
+            --title "Bolo Doctor trial $env:TAG" `
+            --notes "Trial build for doctors. Keys are built in - no setup needed. Includes $env:CAP_MINUTES minutes of dictation per computer. Download the .exe and double-click to run; no install needed. (Windows may show an Unknown publisher warning - click More info, then Run anyway.)"
+        env:
+          TAG: ${{ inputs.tag }}
+          CAP_MINUTES: ${{ inputs.cap_minutes }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
