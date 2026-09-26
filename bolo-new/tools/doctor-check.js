@@ -1,264 +1,198 @@
-// Doctor Mode, end to end as far as automation can reach.
+// Bolo Doctor slice checks. Run with: npx electron tools/doctor-check.js
 //
-// What this proves on a real Windows machine:
-//   - every doctor module loads in the real main process
-//   - the vocabulary correction fixes what it should and never what it shouldn't
-//     (Hindi/Hinglish and Kannada variants included)
-//   - the note template keeps its fixed shape
-//   - a structuring failure can never lose the dictation (it all lands in Complaints)
-//   - saveNote writes a dated, filesystem-safe file per patient
-//   - buildPrintHtml renders the clean note with values escaped
-//   - the PowerShell sidecar compiles (a C# syntax error fails 'ready' here)
-//   - foreground/focus round-trip through the real sidecar
-//   - injectInto never drops a reviewed note, even when the refocus fails
-//   - the doctor window builds and its renderer boots without console errors
+// What it proves: the modules load, the voice state machine starts idle, the
+// structuring has the no-autocorrect safety contract, the local history
+// round-trips (save/list/search/get), the print HTML and share text render,
+// and the doctor window boots without renderer console errors.
 //
-// What it cannot prove (needs a human): a microphone, Hindi/Hinglish/Kannada
-// speech, a real printer, or the saved file opened in Word. That half stays
-// manual.
-//
-//   electron tools/doctor-check.js
-const { app, BrowserWindow, clipboard } = require('electron');
+// What it does not prove: a real microphone, live Sarvam/Groq keys, Hinglish
+// transcription quality, a real printer, or WhatsApp on the doctor's machine.
+// Those need a human with hardware.
+
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-app.on('window-all-closed', () => {});
+// The history file goes to a temp dir for the duration of the suite, so the
+// checks never touch the doctor's real patient data.
+process.env.BOLO_DOCTOR_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'bolo-doctor-check-'));
 
-let pass = 0;
-let fail = 0;
-function check(label, ok, detail) {
-  if (ok) pass++; else fail++;
-  console.log((ok ? '  ok  ' : '  FAIL') + '  ' + label + (detail ? '   ' + detail : ''));
+const { app } = require('electron');
+
+let failures = 0;
+function check(name, cond, extra) {
+  if (cond) console.log('ok - ' + name);
+  else {
+    failures++;
+    console.log('FAIL - ' + name + (extra ? ' :: ' + String(extra).slice(0, 300) : ''));
+  }
 }
 
-app.whenReady().then(async () => {
-  const isWin = process.platform === 'win32';
+async function main() {
+  await app.whenReady();
 
-  /* ── modules load ──────────────────────────────────────────────────── */
-  let doctor, medvocab, sttSarvam, injector, keys;
-  for (const [name, req] of [
-    ['doctor', '../src/main/doctor'],
-    ['medvocab', '../src/main/medvocab'],
-    ['stt_sarvam', '../src/main/stt_sarvam'],
-    ['injector', '../src/main/injector'],
-    ['keys', '../src/main/keys']
-  ]) {
-    try {
-      const m = require(req);
-      if (name === 'doctor') doctor = m;
-      if (name === 'medvocab') medvocab = m;
-      if (name === 'stt_sarvam') sttSarvam = m;
-      if (name === 'injector') injector = m;
-      if (name === 'keys') keys = m;
-      check('require ' + name, true);
-    } catch (e) {
-      check('require ' + name, false, e.message);
-    }
-  }
-  if (!doctor || !medvocab || !injector) {
-    console.log('\n' + pass + ' passed, ' + fail + ' failed\ncannot continue without the doctor modules');
-    app.exit(1);
-    return;
-  }
-
-  /* ── vocabulary correction ─────────────────────────────────────────── */
-  const vocabCases = [
-    ['paracitamol 500 mg twice a day', 'paracetamol 500 mg twice a day'],
-    ['amlo de pine 5 mg', 'amlodipine 5 mg'],
-    ['patient has bukhar and be pee is high', 'patient has fever and BP is high'],
-    ['metphormin for diabeetus', 'metformin for diabetes'],
-    ['azithromycin 500 mg', 'azithromycin 500 mg'],
-    ['cetrizine for cold', 'cetirizine for cold'],
-    ['never give up', 'never give up'],
-    ['the sugar is high', 'the sugar is high'],
-    ['omeprazol daily', 'omeprazole daily'],
-    ['bp 120/80', 'BP 120/80'],
-    // Kannada: jwara/jvara (ಜ್ವರ) is fever, the same way bukhar is.
-    ['rogige jwara ide', 'rogige fever ide'],
-    ['jvara and kemmu', 'fever and kemmu']
-  ];
-  let vocabFails = 0;
-  for (const [input, expected] of vocabCases) {
-    const got = medvocab.correct(input);
-    if (got !== expected) {
-      vocabFails++;
-      console.log('  ....  vocab: ' + JSON.stringify(input) + ' -> ' + JSON.stringify(got) +
-        ' (want ' + JSON.stringify(expected) + ')');
-    }
-    // Idempotent: correcting twice changes nothing further.
-    if (medvocab.correct(got) !== got) {
-      vocabFails++;
-      console.log('  ....  vocab not idempotent on ' + JSON.stringify(got));
-    }
-  }
-  check('vocabulary correction (' + vocabCases.length + ' cases, idempotent)', vocabFails === 0);
-  check('vocabulary handles empty input', medvocab.correct('') === '' && medvocab.correct(null) === '');
-  check('drug list is expandable and non-empty',
-    Array.isArray(medvocab.drugList()) && medvocab.drugList().length >= 7,
-    medvocab.drugList().join(','));
-
-  /* ── template shape ────────────────────────────────────────────────── */
-  const fields = doctor.TEMPLATE_FIELDS || [];
-  check('template has the six fixed fields in order',
-    JSON.stringify(fields) === JSON.stringify(['name', 'ageSex', 'complaints', 'vitals', 'diagnosis', 'prescription']),
-    fields.join(','));
-  const note = doctor.formatNote({ name: 'Ravi', complaints: 'bukhar' });
-  const expectedNote = 'Name: Ravi\nAge/Sex: \nComplaints: bukhar\nVitals: \nDiagnosis: \nPrescription: ';
-  check('formatted note keeps fixed labels and order', note === expectedNote,
-    JSON.stringify(note.slice(0, 60)));
-
-  /* ── Save and Print: the output target ─────────────────────────────── */
-  // Save writes a dated, filesystem-safe file per patient into BoloNotes.
-  // The check writes into a temp dir so the runner's Documents stay clean.
+  // ── Modules load ──────────────────────────────────────────────────────
+  let doctor, voice, keys, sttSarvam;
   try {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bolo-doctor-'));
-    const r = doctor.saveNote(
-      { name: 'Ravi Kumar', ageSex: '42/M', complaints: 'jwara', vitals: '', diagnosis: '', prescription: '' },
-      { dir });
-    const nameOk = /^BoloNote_\d{4}-\d{2}-\d{2}_\d{4}_RaviKumar\.txt$/.test(r.filename);
-    const exists = r.ok && fs.existsSync(r.path);
-    const body = exists ? fs.readFileSync(r.path, 'utf8') : '';
-    check('saveNote writes a dated file per patient',
-      r.ok === true && nameOk && exists &&
-      body.includes('Patient Note') && body.includes('Name: Ravi Kumar') &&
-      body.includes('Complaints: jwara'),
-      r.filename);
-    // Hostile names cannot escape the notes directory or break the filename.
-    const hostile = doctor.saveNote({ name: '../../evil<>:"|?*' }, { dir });
-    const hostileName = path.basename(hostile.path);
-    const contained = path.resolve(hostile.path).startsWith(path.resolve(dir) + path.sep);
-    check('saveNote sanitizes hostile patient names',
-      hostile.ok === true && contained &&
-      !/[<>:"/\\|?*]/.test(hostileName) && !hostileName.includes('..'),
-      hostileName);
-    fs.rmSync(dir, { recursive: true, force: true });
+    doctor = require('../src/main/doctor');
+    voice = require('../src/main/voice');
+    keys = require('../src/main/keys');
+    sttSarvam = require('../src/main/stt_sarvam');
+    require('../src/main/groq');
+    require('../src/main/stt');
+    check('doctor slice modules load', true);
   } catch (e) {
-    check('saveNote writes a dated file per patient', false, e.message);
+    check('doctor slice modules load', false, e.message);
+    return done();
   }
 
-  // buildPrintHtml is pure: verify the layout and that values are escaped.
-  try {
-    const html = doctor.buildPrintHtml(
-      { name: '<Ravi>', complaints: 'jwara\n2 din se' }, '2026-09-25 21:35');
-    const labelsOk = ['Name', 'Age/Sex', 'Complaints', 'Vitals', 'Diagnosis', 'Prescription']
-      .every((l) => html.includes('>' + l + '<'));
-    check('print HTML carries the clean note with all six labels',
-      typeof html === 'string' && html.includes('Patient Note') && labelsOk);
-    check('print HTML escapes field values',
-      html.includes('&lt;Ravi&gt;') && !html.includes('<Ravi>') && html.includes('<br>'),
-      html.slice(0, 80));
-  } catch (e) {
-    check('print HTML carries the clean note with all six labels', false, e.message);
-  }
-  /* ── structuring never loses the dictation ─────────────────────────── */
-  // Without Groq keys the model call cannot run, so the fallback must carry
-  // the whole (vocabulary-corrected) transcript into Complaints.
+  // ── Voice state machine ───────────────────────────────────────────────
+  check('voice starts idle', voice.getState().state === 'idle');
+
+  // ── Structuring: the safety contract ──────────────────────────────────
+  const sys = doctor.STRUCTURE_SYSTEM || '';
+  check('structuring prompt forbids silent drug correction',
+    /NEVER silently correct/i.test(sys));
+  check('structuring prompt requires uncertainty flags',
+    /uncertain.*true/i.test(sys));
+  check('structuring prompt forbids inventing information',
+    /Never invent information/i.test(sys));
+
+  // ── validateNote: shape coercion ──────────────────────────────────────
+  const good = doctor.validateNote({
+    patient_name: 'Ramesh Gupta',
+    age: '45',
+    symptoms: 'fever 3 din se, throat pain',
+    diagnosis: 'viral pharyngitis',
+    prescription: [
+      { medicine: 'paracetamol', dose: '650', timing: 'twice daily', duration: '3 days', uncertain: false, uncertain_reason: '' },
+      { medicine: '', dose: '', timing: '', duration: '' }
+    ]
+  }, 'ignored');
+  check('validateNote keeps the five fields',
+    good.patient_name === 'Ramesh Gupta' && good.age === '45' &&
+    good.diagnosis === 'viral pharyngitis');
+  check('validateNote keeps prescription as a list of items',
+    Array.isArray(good.prescription) && good.prescription.length === 1 &&
+    good.prescription[0].medicine === 'paracetamol' &&
+    good.prescription[0].dose === '650' &&
+    good.prescription[0].timing === 'twice daily' &&
+    good.prescription[0].duration === '3 days');
+  check('validateNote drops fully-empty prescription rows',
+    good.prescription.length === 1);
+
+  // Drug names pass through untouched: no silent correction at this layer.
+  const untouched = doctor.validateNote({
+    prescription: [{ medicine: 'paracitamol', dose: '650', uncertain: false }]
+  }, '');
+  check('validateNote never rewrites a drug name',
+    untouched.prescription[0].medicine === 'paracitamol');
+
+  // An uncertain item keeps its flag and reason.
+  const flagged = doctor.validateNote({
+    prescription: [{ medicine: 'amlo de pine', dose: '5', uncertain: true, uncertain_reason: 'drug name unclear in audio' }]
+  }, '');
+  check('validateNote preserves uncertainty flags',
+    flagged.prescription[0].uncertain === true &&
+    /unclear/.test(flagged.prescription[0].uncertain_reason));
+
+  // ── validateNote: fallback never loses the dictation ──────────────────
+  const fallback = doctor.validateNote(null, 'Ramesh Gupta, 45, fever 3 din se');
+  check('structuring fallback keeps the dictation in symptoms',
+    fallback.symptoms === 'Ramesh Gupta, 45, fever 3 din se');
+  const emptyFallback = doctor.validateNote({ patient_name: '' }, 'kuch sunai nahi diya');
+  check('empty model output falls back to the raw dictation',
+    emptyFallback.symptoms === 'kuch sunai nahi diya');
+
+  // ── structureNote without keys: transcript survives ───────────────────
   if (keys.count('groq') === 0) {
-    const r = await doctor.structureNote('patient ko paracitamol diya');
-    check('structuring without keys falls back, nothing lost',
-      r && r.ok === false && r.fields && r.fields.complaints === 'patient ko paracetamol diya',
-      JSON.stringify(r && r.fields));
+    const r = await doctor.structureNote('Ramesh Gupta, 45, fever 3 din se');
+    check('structureNote without keys returns ok:false with the transcript intact',
+      r && r.ok === false && r.note && r.note.symptoms === 'Ramesh Gupta, 45, fever 3 din se');
   } else {
-    console.log('  ....  Groq keys present here — skipping the no-keys fallback check.');
-  }
-  const emptyR = await doctor.structureNote('   ');
-  check('structuring empty text is a safe no-op',
-    emptyR && emptyR.ok === false && emptyR.fields.complaints === '');
-
-  // Kannada dictation survives the fallback byte-for-byte: the vocabulary
-  // layer only touches Latin-script words, so native script is never mangled.
-  if (keys.count('groq') === 0) {
-    const kn = await doctor.structureNote('ರೋಗಿಗೆ ಜ್ವರ ಇದೆ');
-    check('structuring fallback preserves Kannada script',
-      kn && kn.ok === false && kn.fields.complaints === 'ರೋಗಿಗೆ ಜ್ವರ ಇದೆ',
-      JSON.stringify(kn && kn.fields));
+    console.log('skip - structureNote no-keys path (Groq keys present in this environment)');
   }
 
-  /* ── injector: availability and protocol ───────────────────────────── */
-  check('injector reports Windows availability', injector.available() === isWin);
+  // ── History: save / list / search / get ───────────────────────────────
+  const noteA = {
+    transcript: 't1', patient_name: 'Ramesh Gupta', age: '45',
+    symptoms: 'fever', diagnosis: 'viral', prescription: [{ medicine: 'paracetamol', dose: '650', timing: 'twice daily', duration: '3 days' }]
+  };
+  const noteB = {
+    transcript: 't2', patient_name: 'Sunita Devi', age: '62',
+    symptoms: 'knee pain', diagnosis: 'arthritis', prescription: []
+  };
+  const sA = doctor.saveNoteToHistory(noteA);
+  const sB = doctor.saveNoteToHistory(noteB);
+  check('history save returns ok with an id', sA.ok && !!sA.id && sB.ok && !!sB.id && sA.id !== sB.id);
+  const listed = doctor.listNotes();
+  check('history list returns newest first',
+    listed.length === 2 && listed[0].patient_name === 'Sunita Devi' && listed[1].patient_name === 'Ramesh Gupta');
+  const found = doctor.searchNotes('ramesh');
+  check('history search by name is case-insensitive',
+    found.length === 1 && found[0].patient_name === 'Ramesh Gupta');
+  check('history search with empty query lists everything',
+    doctor.searchNotes('').length === 2);
+  const got = doctor.getNote(sA.id);
+  check('history get returns the saved note',
+    got && got.patient_name === 'Ramesh Gupta' && got.prescription.length === 1 &&
+    got.prescription[0].timing === 'twice daily');
+  check('history get with unknown id returns null', doctor.getNote('nope') === null);
+  // The file is one local JSON file.
+  const raw = fs.readFileSync(doctor.historyFile(), 'utf8');
+  check('history persists as one local JSON file', (() => {
+    try { return Array.isArray(JSON.parse(raw)) && JSON.parse(raw).length === 2; }
+    catch (_) { return false; }
+  })());
 
-  const fg = await injector.foregroundHwnd();
-  // A CI runner has no interactive desktop, so there may be no foreground
-  // window at all. That is an environment limit, not a sidecar bug: skip the
-  // desktop-dependent check loudly instead of failing on it.
-  const desktopPresent = isWin && fg.ok === true && /^\d+$/.test(fg.hwnd || '') && fg.hwnd !== '0';
-  if (!isWin) {
-    check('foregroundHwnd declines off Windows', fg.ok === false, fg.error);
-  } else if (!desktopPresent) {
-    console.log('  ....  no interactive desktop here — foreground check skipped, sidecar protocol still verified below');
-  } else {
-    check('foreground window captured through the sidecar', true, JSON.stringify(fg));
-  }
+  // ── Outputs ───────────────────────────────────────────────────────────
+  const html = doctor.buildPrintHtml({ ...noteA, createdAt: '2026-09-26 17:00' });
+  check('print HTML carries the prescription as a table',
+    /<table>/.test(html) && /paracetamol/.test(html) && /twice daily/.test(html));
+  const evil = doctor.buildPrintHtml({ ...noteA, patient_name: '<img src=x onerror=alert(1)>', createdAt: '' });
+  check('print HTML escapes patient input', !/<img src=x/.test(evil) && /&lt;img/.test(evil));
+  const flaggedHtml = doctor.buildPrintHtml({
+    createdAt: '', prescription: [{ medicine: 'x', dose: '', timing: '', duration: '', uncertain: true, uncertain_reason: 'unclear in audio' }]
+  });
+  check('print HTML shows uncertainty flags', /needs check/.test(flaggedHtml));
+  const share = doctor.shareText({ ...noteA, createdAt: '2026-09-26 17:00' });
+  check('share text lists the prescription for WhatsApp',
+    /paracetamol/.test(share) && /650/.test(share));
+  const formatted = doctor.formatNote({ ...noteA, createdAt: '2026-09-26 17:00' });
+  check('formatNote keeps the fixed labels',
+    /Patient:/.test(formatted) && /Prescription:/.test(formatted));
 
-  const badFocus = await injector.focusHwnd('0');
-  check('focus refuses a null window instead of crashing', badFocus.ok === false,
-    badFocus.error);
-
-  const emptyInject = await injector.injectInto('', null);
-  check('an empty injectInto is refused', emptyInject.ok === false && emptyInject.error === 'empty-text');
-
-  // The refocus fails (there is no window 0) — the note must still land on the
-  // clipboard, never vanish.
-  const PROBE = 'bolo doctor probe ' + Date.now();
-  const into = await injector.injectInto(PROBE, '0');
-  const onClipboard = (() => { try { return clipboard.readText() === PROBE; } catch (_) { return false; } })();
-  check('injectInto survives a failed refocus via the clipboard',
-    into && into.ok === true && into.focusError && (onClipboard || !desktopPresent),
-    JSON.stringify({ ok: into.ok, focusError: into.focusError, systemWide: into.systemWide }));
-
-  /* ── the doctor window builds and its renderer boots ───────────────── */
+  // ── The doctor window boots clean ─────────────────────────────────────
+  const errors = [];
   const preloadPath = path.join(__dirname, '..', 'src', 'preload', 'preload.js');
   const rendererDir = path.join(__dirname, '..', 'src', 'renderer');
-  const rendererErrors = [];
-  let win = null;
-  try {
-    doctor.create(preloadPath, rendererDir);
-    win = doctor.getWindow();
-    check('doctor window creates', !!win && !win.isDestroyed());
-    if (win) {
-      win.webContents.on('console-message', (_e, level, message) => {
-        if (level >= 2) rendererErrors.push(String(message).slice(0, 160));
-      });
-      await new Promise((resolve) => {
-        let done = false;
-        const finish = () => { if (!done) { done = true; resolve(); } };
-        win.webContents.once('did-finish-load', () => setTimeout(finish, 1200));
-        setTimeout(finish, 8000);
-      });
-      check('doctor renderer boots without console errors', rendererErrors.length === 0,
-        rendererErrors.slice(0, 3).join(' | '));
-      const title = await win.webContents.executeJavaScript('document.title');
-      check('doctor page has the expected title', /doctor/i.test(title || ''), JSON.stringify(title));
-      win.destroy();
-    }
-  } catch (e) {
-    check('doctor window creates', false, e.message);
-  }
-  check('doctor window reports closed after destroy', doctor.isOpen() === false);
+  const w = doctor.create(preloadPath, rendererDir);
+  check('doctor window is created', !!w && doctor.isOpen());
+  w.webContents.on('console-message', (_e, level, message) => {
+    errors.push('[' + level + '] ' + message);
+  });
+  await new Promise((resolve) => {
+    if (w.webContents.isLoading()) w.webContents.once('did-finish-load', resolve);
+    else resolve();
+    setTimeout(resolve, 10000);
+  });
+  await new Promise((r) => setTimeout(r, 2000)); // let the renderer settle
+  check('doctor window boots with no renderer console messages', errors.length === 0, errors.join(' | '));
+  try { w.destroy(); } catch (_) {}
 
-  /* ── the doctor window hears the voice pipeline ────────────────────── */
-  // Regression test for the Sep 26 "stuck on Listening…" bug: broadcastAll
-  // fanned voice-state / voice-level / doctor-result out to the dashboard,
-  // pill, notch and intro windows but never the doctor window, so the doctor
-  // renderer never learned a session had stopped and the note never arrived.
-  try {
-    const mainSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'main.js'), 'utf8');
-    const m = mainSrc.match(/function broadcastAll\(channel, payload\) \{([\s\S]*?)\n\}/);
-    check('broadcastAll reaches the doctor window',
-      !!m && m[1].includes('doctor.getWindow()'));
-  } catch (e) {
-    check('broadcastAll reaches the doctor window', false, e.message);
-  }
+  // ── Sarvam STT module is intact (Hinglish path) ────────────────────────
+  check('sarvam module exposes transcribe', typeof sttSarvam.transcribe === 'function');
 
-  /* ── dispose is safe, twice ────────────────────────────────────────── */
-  await injector.dispose();
-  await injector.dispose();
-  check('injector dispose is safe twice', true);
+  done();
+}
 
-  console.log('\n' + pass + ' passed, ' + fail + ' failed');
-  app.exit(fail ? 1 : 0);
-}).catch((e) => {
-  console.log('  FAIL  check harness threw: ' + (e && e.message));
-  app.exit(1);
+function done() {
+  console.log(failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED');
+  // Let any stray handles settle, then exit with the real verdict.
+  setTimeout(() => process.exit(failures === 0 ? 0 : 1), 500);
+}
+
+main().catch((e) => {
+  console.log('FAIL - uncaught in check suite :: ' + (e && e.stack || e));
+  setTimeout(() => process.exit(1), 500);
 });
