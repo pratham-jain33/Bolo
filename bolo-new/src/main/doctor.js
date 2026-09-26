@@ -275,6 +275,24 @@ function saveNoteToHistory(note, recording) {
   return { ok: true, id: entry.id, recording: !!entry.recording };
 }
 
+// Update a note the doctor already approved (P2: manual edit after save).
+// Only the editable clinical fields change — id, createdAt, transcript and
+// any kept recording are preserved.
+function updateNoteInHistory(id, note) {
+  const arr = readHistory();
+  const i = arr.findIndex((e) => e && e.id === id);
+  if (i < 0) return { ok: false, error: 'note not found' };
+  const n = (note && typeof note === 'object') ? note : {};
+  const e = arr[i];
+  e.patient_name = str(n.patient_name);
+  e.age = str(n.age);
+  e.symptoms = str(n.symptoms);
+  e.diagnosis = str(n.diagnosis);
+  e.prescription = Array.isArray(n.prescription) ? n.prescription.map(coerceItem) : [];
+  writeHistory(arr);
+  return { ok: true, id };
+}
+
 const REC_EXT = {
   'audio/webm': '.webm',
   'audio/wav': '.wav',
@@ -443,6 +461,6 @@ async function printNote(note) {
 module.exports = {
   create, getWindow, isOpen, show, send,
   structureNote, validateNote, blankNote, coerceItem, STRUCTURE_SYSTEM, NOTE_FIELDS,
-  listNotes, searchNotes, getNote, saveNoteToHistory, getNoteAudio, historyFile,
+  listNotes, searchNotes, getNote, saveNoteToHistory, updateNoteInHistory, getNoteAudio, historyFile,
   formatNote, shareText, buildPrintHtml, printNote, stampOf
 };
