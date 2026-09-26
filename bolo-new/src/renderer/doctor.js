@@ -332,8 +332,8 @@ async function showDetail(id) {
       '<table class="rx"><tr><th>#</th><th>Medicine</th><th>Dose</th><th>Timing</th><th>Duration</th></tr>' +
       rxRows + '</table></div>' +
       detailRow('What was heard', n.transcript);
-    // The original recording, when this note has one. Notes saved before
-    // recordings existed simply show the transcript without a player.
+    // The original recording, when this note has one. The player says WHY when
+    // something is wrong (missing file, blocked load) instead of a silent 0:00.
     if (n.recording) {
       const wrap = document.createElement('div');
       wrap.className = 'detail-row';
@@ -342,23 +342,35 @@ async function showDetail(id) {
       label.textContent = 'Original recording';
       const player = document.createElement('audio');
       player.controls = true;
-      player.preload = 'none';
+      player.preload = 'metadata';
       player.style.width = '100%';
       player.style.marginTop = '4px';
+      const showWhy = (why) => { label.textContent = 'Original recording (' + why + ')'; };
+      player.addEventListener('error', () => {
+        const e = player.error;
+        showWhy('could not play' + (e && e.message ? ': ' + e.message : ''));
+      });
       wrap.appendChild(label);
       wrap.appendChild(player);
       $('detailBody').appendChild(wrap);
-      const markUnavailable = () => { label.textContent = 'Original recording (unavailable)'; };
       try {
         const r = await bolo.historyAudio(n.id);
         if (r && r.ok && r.data) {
-          player.src = 'data:' + (r.mime || 'audio/webm') + ';base64,' + r.data;
+          // Blob URL: more reliable than a giant data: URL inside <audio>.
+          const bytes = Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0));
+          player.src = URL.createObjectURL(new Blob([bytes], { type: r.mime || 'audio/webm' }));
         } else {
-          markUnavailable();
+          showWhy((r && r.error) || 'unavailable');
         }
       } catch (_) {
-        markUnavailable();
+        showWhy('unavailable');
       }
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'detail-row';
+      wrap.innerHTML = '<div class="dl">Original recording</div>' +
+        '<div class="dv" style="color:#888">No recording was kept for this note.</div>';
+      $('detailBody').appendChild(wrap);
     }
     showView('detail');
   } catch (e) {
