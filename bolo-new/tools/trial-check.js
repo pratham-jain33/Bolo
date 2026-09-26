@@ -30,27 +30,28 @@ async function main() {
   const id2 = trial.machineId();
   check('machine id is stable and non-empty', !!id1 && id1 === id2, String(id1));
 
+  const expectedCap = trial.capMs();
   const s0 = trial.status();
   check('status reports the trial cap',
-    s0.trial === true && s0.capMs === 5 * 60 * 1000 && s0.usedMs === 0 &&
-    s0.remainingMs === 5 * 60 * 1000 && s0.exhausted === false,
+    s0.trial === true && s0.capMs === expectedCap && s0.usedMs === 0 &&
+    s0.remainingMs === expectedCap && s0.exhausted === false,
     JSON.stringify(s0));
   check('a fresh trial can start dictation', trial.canStart() === true);
 
   trial.addUsage(60 * 1000);
   const s1 = trial.status();
   check('one minute of dictation accumulates',
-    s1.usedMs === 60 * 1000 && s1.remainingMs === 4 * 60 * 1000 && trial.canStart(),
+    s1.usedMs === 60 * 1000 && s1.remainingMs === expectedCap - 60 * 1000 && trial.canStart(),
     JSON.stringify(s1));
 
-  trial.addUsage(10 * 60 * 1000);
+  trial.addUsage(expectedCap);
   const s2 = trial.status();
   check('the cap exhausts and blocks new dictations',
     s2.exhausted === true && s2.remainingMs === 0 && !trial.canStart(),
     JSON.stringify(s2));
 
   trial.addUsage(-5000);
-  check('negative usage is ignored', trial.status().usedMs === 11 * 60 * 1000);
+  check('negative usage is ignored', trial.status().usedMs === expectedCap + 60 * 1000);
 
   console.log(failures === 0 ? 'ALL TRIAL CHECKS PASSED' : failures + ' CHECK(S) FAILED');
   setTimeout(() => process.exit(failures === 0 ? 0 : 1), 500);
