@@ -87,17 +87,42 @@ function writeUsage(usedMs) {
   } catch (_) { /* bookkeeping must never break the app */ }
 }
 
+// Trial expiry: the baked expiryDate (YYYY-MM-DD) is the last full day of the
+// trial, in the doctor's local time. After it, dictation is blocked with a
+// friendly message; history stays readable.
+function expiryInfo() {
+  const cfg = trialConfig();
+  const raw = cfg && cfg.expiryDate;
+  const m = typeof raw === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!m) return null;
+  const end = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
+  if (isNaN(end.getTime())) return null;
+  const label = end.toLocaleDateString('en-IN',
+    { day: 'numeric', month: 'short', year: 'numeric' });
+  return { end, label };
+}
+
+function isExpired(now) {
+  const info = expiryInfo();
+  if (!info) return false;
+  const t = now instanceof Date ? now : new Date();
+  return t.getTime() > info.end.getTime();
+}
+
 function status() {
   if (!isTrial()) return { trial: false };
   const cap = capMs();
   const { usedMs } = readUsage();
   const remaining = Math.max(0, cap - usedMs);
+  const info = expiryInfo();
   return {
     trial: true,
     capMs: cap,
     usedMs,
     remainingMs: remaining,
-    exhausted: remaining <= 0
+    exhausted: remaining <= 0,
+    expired: isExpired(),
+    expiryLabel: info ? info.label : null
   };
 }
 
@@ -116,4 +141,4 @@ function addUsage(ms) {
   writeUsage(usedMs + Math.round(n));
 }
 
-module.exports = { isTrial, capMs, machineId, status, canStart, addUsage };
+module.exports = { isTrial, capMs, machineId, status, canStart, addUsage, isExpired, expiryInfo };
