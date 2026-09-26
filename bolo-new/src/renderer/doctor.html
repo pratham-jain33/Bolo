@@ -1,98 +1,164 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Bolo Doctor</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    background: #ffffff; color: #1a1a1a;
-    padding: 20px; font-size: 14px; line-height: 1.45;
-    -webkit-user-select: none; user-select: none;
-  }
-  h1 { font-size: 18px; font-weight: 600; margin-bottom: 2px; }
-  .sub { color: #666; font-size: 12px; margin-bottom: 18px; }
-  .mic-wrap { display: flex; justify-content: center; margin: 10px 0 8px; }
-  #micBtn {
-    width: 110px; height: 110px; border-radius: 50%;
-    border: 3px solid #d0d0d0; background: #f4f4f4; cursor: pointer;
-    font-size: 44px; line-height: 1; transition: border-color .15s, background .15s;
-  }
-  #micBtn:hover { border-color: #999; }
-  #micBtn.live { border-color: #d43d3d; background: #fdeeee; animation: pulse 1.2s infinite; }
-  #micBtn:disabled { opacity: .5; cursor: default; }
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(212,61,61,.25); } 50% { box-shadow: 0 0 0 12px rgba(212,61,61,0); } }
-  #status { text-align: center; font-size: 13px; color: #555; min-height: 20px; margin-bottom: 14px; }
-  #status.live { color: #b3261e; font-weight: 600; }
-  .label { font-size: 12px; font-weight: 600; color: #555; margin: 12px 0 6px; }
-  #transcript {
-    width: 100%; height: 130px; resize: vertical;
-    border: 1px solid #ccc; border-radius: 6px; padding: 10px;
-    font-size: 14px; font-family: inherit; line-height: 1.5;
-    -webkit-user-select: text; user-select: text; background: #fafafa;
-  }
-  .row { display: flex; gap: 8px; margin-top: 10px; }
-  .btn {
-    flex: 1; padding: 11px 8px; font-size: 14px; border-radius: 6px;
-    border: 1px solid #bbb; background: #f0f0f0; cursor: pointer; font-family: inherit;
-  }
-  .btn:hover:not(:disabled) { background: #e4e4e4; }
-  .btn:disabled { opacity: .45; cursor: default; }
-  .btn.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: 600; }
-  .btn.primary:hover:not(:disabled) { background: #1765cc; }
-  .keys { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e3e3e3; }
-  .keys .row { align-items: center; }
-  #sarvamKey {
-    flex: 1; padding: 9px 10px; font-size: 13px;
-    border: 1px solid #ccc; border-radius: 6px; font-family: inherit;
-  }
-  #keyState { font-size: 12px; color: #666; margin-top: 6px; }
-  .hint { margin-top: 14px; font-size: 11px; color: #999; text-align: center; }
-  #template { margin-top: 6px; }
-  .tlabel { font-size: 12px; font-weight: 600; color: #555; margin: 10px 0 4px; }
-  .tfield {
-    width: 100%; padding: 8px 10px; font-size: 14px; font-family: inherit;
-    border: 1px solid #ccc; border-radius: 6px; background: #fff;
-    -webkit-user-select: text; user-select: text;
-  }
-  .tfield:focus { outline: 2px solid #1a73e8; outline-offset: -1px; border-color: #1a73e8; }
-  .tarea { min-height: 56px; resize: vertical; line-height: 1.5; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; margin: 0; color: #1a1a1a; background: #fff; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #eee; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 650; }
+  header .nav button { margin-left: 8px; }
+  button { font-size: 14px; padding: 8px 14px; border-radius: 8px; border: 1px solid #d8d8d8; background: #f7f7f7; cursor: pointer; }
+  button:hover { background: #efefef; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: 600; }
+  button.primary:hover { background: #1765cc; }
+  button.danger { color: #b3261e; }
+  .view { display: none; padding: 18px; max-width: 520px; margin: 0 auto; }
+  .view.active { display: block; }
+
+  /* Record view */
+  #micWrap { text-align: center; padding: 34px 0 10px; }
+  #micBtn { width: 128px; height: 128px; border-radius: 50%; font-size: 15px; border: none; background: #1a73e8; color: #fff; font-weight: 650; box-shadow: 0 6px 20px rgba(26,115,232,.35); }
+  #micBtn.live { background: #d93025; box-shadow: 0 6px 20px rgba(217,48,37,.35); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+  #status { text-align: center; margin: 16px 0 6px; font-size: 14px; color: #444; min-height: 20px; }
+  #status.live { color: #d93025; font-weight: 600; }
+  #transcript { width: 100%; min-height: 110px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-size: 14px; resize: vertical; background: #fafafa; }
+  .hint { font-size: 12.5px; color: #777; margin-top: 12px; line-height: 1.5; }
+
+  /* Review view */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: #555; margin-bottom: 4px; }
+  .field input, .field textarea { width: 100%; font-size: 14.5px; padding: 9px 10px; border: 1px solid #d5d5d5; border-radius: 8px; }
+  .field textarea { min-height: 64px; resize: vertical; }
+  .review-title { font-size: 16px; font-weight: 650; margin: 0 0 4px; }
+  .review-sub { font-size: 13px; color: #666; margin: 0 0 14px; }
+  .rx-row { border: 1px solid #ddd; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  .rx-row.needs-check { border-color: #e8a33d; background: #fffaf0; }
+  .rx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .rx-grid input { width: 100%; font-size: 14px; padding: 8px; border: 1px solid #d5d5d5; border-radius: 6px; }
+  .rx-flag { font-size: 12.5px; color: #92400e; margin-top: 6px; font-weight: 600; }
+  .rx-actions { text-align: right; margin-top: 6px; }
+  .rx-actions button { font-size: 12px; padding: 5px 10px; }
+  .actions { display: flex; gap: 10px; margin-top: 16px; }
+  .actions button { flex: 1; padding: 12px; font-size: 15px; }
+
+  /* Done / detail views */
+  .note-card { border: 1px solid #e3e3e3; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .note-card .nm { font-weight: 650; font-size: 15px; }
+  .note-card .meta { font-size: 12.5px; color: #777; margin-top: 2px; }
+  .detail-row { margin-bottom: 10px; }
+  .detail-row .dl { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: #555; }
+  .detail-row .dv { font-size: 14.5px; margin-top: 2px; white-space: pre-wrap; }
+  table.rx { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+  table.rx th { text-align: left; font-size: 11.5px; text-transform: uppercase; color: #555; border-bottom: 2px solid #555; padding: 5px 6px; }
+  table.rx td { border-bottom: 1px solid #e5e5e5; padding: 6px; vertical-align: top; }
+  .flag-inline { color: #92400e; font-size: 12.5px; font-weight: 600; }
+
+  /* History */
+  #historySearch { width: 100%; font-size: 14.5px; padding: 10px; border: 1px solid #d5d5d5; border-radius: 8px; margin-bottom: 12px; }
+  .hist-item { border: 1px solid #e3e3e3; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
+  .hist-item:hover { background: #f8f9fa; }
+  .hist-item .nm { font-weight: 650; }
+  .hist-item .meta { font-size: 12.5px; color: #777; }
+  .empty { color: #888; font-size: 14px; text-align: center; padding: 30px 0; }
+
+  /* Keys panel */
+  .key-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .key-row input { flex: 1; font-size: 14px; padding: 9px 10px; border: 1px solid #d5d5d5; border-radius: 8px; }
+  .key-state { font-size: 12.5px; color: #666; margin: -8px 0 14px; }
 </style>
 </head>
 <body>
+<header>
   <h1>Bolo Doctor</h1>
-  <div class="sub">Dictate the patient note, review it, paste it into your clinic software.</div>
-
-  <div class="mic-wrap">
-    <button id="micBtn" title="Start / stop dictation">&#127908;</button>
+  <div class="nav">
+    <button id="navHistory">History</button>
+    <button id="navKeys">Keys</button>
   </div>
-  <div id="status">Ready. Tap the mic or press Ctrl+Shift+D.</div>
+</header>
 
-  <div class="label">What you said</div>
-  <textarea id="transcript" readonly placeholder="Your dictation will appear here."></textarea>
-
-  <!-- Phase 3 mounts the patient-note template here. -->
-  <div id="template"></div>
-
-  <div class="row">
-    <button id="copyBtn" class="btn primary" disabled>Copy</button>
-    <button id="saveBtn" class="btn" disabled>Save</button>
-    <button id="printBtn" class="btn" disabled>Print</button>
+<!-- 1. Record -->
+<section id="view-record" class="view active">
+  <div id="micWrap"><button id="micBtn">Tap to<br>dictate</button></div>
+  <div id="status">Ready. Tap the mic after the patient leaves.</div>
+  <div class="field">
+    <label>What was heard</label>
+    <textarea id="transcript" readonly placeholder="Your dictation appears here…"></textarea>
   </div>
+  <div class="hint">Speak for about 30 seconds in Hinglish: name, age, symptoms, diagnosis, and each medicine with dose, timing, and duration. You will review everything before anything is saved.</div>
+</section>
 
-  <div class="keys">
-    <div class="label" style="margin-top:0">Sarvam key <span style="font-weight:400;color:#888">(for Hindi / Hinglish / Kannada)</span></div>
-    <div class="row">
-      <input id="sarvamKey" type="password" placeholder="Paste your Sarvam API key" autocomplete="off" />
-      <button id="keySave" class="btn" style="flex:0 0 auto">Save</button>
-    </div>
-    <div id="keyState">No Sarvam key saved — English dictation still works via Groq.</div>
+<!-- 2. Review (mandatory) -->
+<section id="view-review" class="view">
+  <p class="review-title">Review the note</p>
+  <p class="review-sub">Check every field. Nothing is saved or printed until you approve. Anything the app is unsure about is marked <b>needs check</b> — it never guesses a drug name or dose.</p>
+  <div class="field"><label>Patient name</label><input id="fName"></div>
+  <div class="field"><label>Age</label><input id="fAge"></div>
+  <div class="field"><label>Symptoms</label><textarea id="fSymptoms"></textarea></div>
+  <div class="field"><label>Diagnosis</label><input id="fDiagnosis"></div>
+  <div class="field">
+    <label>Prescription</label>
+    <div id="rxList"></div>
+    <button id="rxAdd">+ Add medicine</button>
   </div>
+  <div class="actions">
+    <button id="approveBtn" class="primary">Approve &amp; save</button>
+    <button id="discardBtn" class="danger">Discard</button>
+  </div>
+</section>
 
-  <div class="hint">Global shortcut: Ctrl+Shift+D &nbsp;·&nbsp; Your keys never leave this computer.</div>
+<!-- 3. Done -->
+<section id="view-done" class="view">
+  <p class="review-title">Note saved</p>
+  <p class="review-sub" id="doneSub"></p>
+  <div class="note-card" id="doneCard"></div>
+  <div class="actions">
+    <button id="donePrint" class="primary">Print</button>
+    <button id="doneShare">Share on WhatsApp</button>
+    <button id="doneCopy">Copy</button>
+  </div>
+  <div class="actions">
+    <button id="doneNew">New patient</button>
+  </div>
+</section>
+
+<!-- 4. History -->
+<section id="view-history" class="view">
+  <p class="review-title">Patient history</p>
+  <input id="historySearch" placeholder="Search by patient name…">
+  <div id="historyList"></div>
+</section>
+
+<!-- 5. Detail -->
+<section id="view-detail" class="view">
+  <p class="review-title" id="detailTitle"></p>
+  <p class="review-sub" id="detailSub"></p>
+  <div id="detailBody"></div>
+  <div class="actions">
+    <button id="detailPrint" class="primary">Print</button>
+    <button id="detailShare">Share on WhatsApp</button>
+    <button id="detailCopy">Copy</button>
+  </div>
+  <div class="actions">
+    <button id="detailBack">Back to history</button>
+  </div>
+</section>
+
+<!-- 6. Keys -->
+<section id="view-keys" class="view">
+  <p class="review-title">Keys</p>
+  <p class="review-sub">Both stay on this machine. Sarvam transcribes your Hinglish; Groq organizes it into the note.</p>
+  <div class="field"><label>Sarvam key (Hinglish transcription)</label></div>
+  <div class="key-row"><input id="sarvamKey" type="password" placeholder="Paste Sarvam API key"><button id="sarvamSave">Save</button></div>
+  <div class="key-state" id="sarvamState"></div>
+  <div class="field"><label>Groq key (note structuring)</label></div>
+  <div class="key-row"><input id="groqKey" type="password" placeholder="Paste Groq API key"><button id="groqSave">Save</button></div>
+  <div class="key-state" id="groqState"></div>
+</section>
 
 <script src="doctor.js"></script>
 </body>
