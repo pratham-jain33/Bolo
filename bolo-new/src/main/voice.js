@@ -96,8 +96,12 @@ async function toggle({ broadcast } = {}) {
   }
 
   // idle -> listening
-  // Trial builds: the per-computer dictation cap is enforced here, so the mic
-  // button and the global shortcut share the one choke point.
+  // Trial builds: the expiry date and the per-computer dictation cap are
+  // enforced here, so the mic button and the global shortcut share the one
+  // choke point.
+  if (trial.isExpired()) {
+    return { ...getState(), error: 'trial-ended' };
+  }
   if (!trial.canStart()) {
     return { ...getState(), error: 'trial-exhausted' };
   }
