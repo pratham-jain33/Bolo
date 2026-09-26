@@ -21,7 +21,7 @@ on:
       cap_minutes:
         description: 'Dictation minutes allowed per computer'
         required: true
-        default: '5'
+        default: '15'
 
 jobs:
   build:
