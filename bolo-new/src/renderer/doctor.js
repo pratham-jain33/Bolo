@@ -35,6 +35,7 @@ async function toggle() {
   try {
     const r = await bolo.doctorToggle();
     if (r && r.state === 'listening') setStatus('Listening… tap the mic to stop.', true);
+    else if (r && r.error === 'trial-exhausted') setStatus('This trial\u2019s dictation time is used up on this computer.', false);
     else if (r && r.error) setStatus('Could not start: ' + r.error, false);
   } catch (e) {
     setStatus('Could not start dictation.', false);
@@ -53,8 +54,33 @@ bolo.on('bolo:voice-state', (s) => {
   else if (current === null) setStatus('Ready. Tap the mic after the patient leaves.', false);
 });
 
+// ── Trial mode: per-computer dictation banner ────────────────────────────
+function fmtTrialMs(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+async function refreshTrial() {
+  try {
+    const t = await bolo.trialStatus();
+    const el = $('trialLine');
+    if (t && t.trial) {
+      el.style.display = '';
+      el.textContent = t.exhausted
+        ? 'Trial version — dictation time is used up on this computer.'
+        : 'Trial version — ' + fmtTrialMs(t.remainingMs) + ' of ' + fmtTrialMs(t.capMs) +
+          ' dictation left on this computer.';
+      // Keys are baked into the trial: nothing to paste, nothing to clear.
+      $('keyFields').style.display = 'none';
+      $('trialKeyNote').style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  } catch (_) { /* keyless dev builds: stay silent */ }
+}
+
 bolo.on('bolo:doctor-result', (r) => {
   if (!r) return;
+  refreshTrial();
   if (r.text) {
     $('transcript').value = r.text;
     structureIntoReview(r.text);
@@ -466,3 +492,4 @@ $('shortcutSave').onclick = async () => {
 
 refreshKeyStates();
 loadShortcut();
+refreshTrial();
