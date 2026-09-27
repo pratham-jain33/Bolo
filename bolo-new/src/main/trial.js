@@ -21,7 +21,10 @@ const path = require('path');
 
 function trialConfig() {
   try {
-    const cfg = require('./trial-config.json');
+    // fs (not require): Electron's fs patch reads straight through the
+    // packaged asar, where a bare require of the baked JSON proved flaky.
+    const raw = fs.readFileSync(path.join(__dirname, 'trial-config.json'), 'utf8');
+    const cfg = JSON.parse(raw);
     if (cfg && cfg.trial === true) return cfg;
   } catch (_) { /* not a trial build: the file is gitignored and absent */ }
   return null;
