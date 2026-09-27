@@ -76,6 +76,36 @@ jobs:
       - name: build portable exe
         run: npx electron-builder --win portable --x64
 
+      # The trial banner, demo button, baked keys and dictation cap all depend
+      # on two baked files reaching the packaged app. trial-check.js proves the
+      # logic from source; this proves the files survived packaging and that
+      # trial mode actually activates from the packaged asar. Fail loud here
+      # instead of shipping a trial that silently behaves like a dev build.
+      - name: verify baked trial files survived packaging
+        run: |
+          npx electron-builder --win dir --x64
+          $asar = Join-Path (Get-Location) 'dist/win-unpacked/resources/app.asar'
+          if (-not (Test-Path $asar)) { Write-Output 'app.asar missing from dir build'; exit 1 }
+          $files = npx asar list $asar
+          foreach ($f in @('src/main/trial-config.json', 'src/main/seed-keys.js')) {
+            if (-not ($files -match [regex]::Escape($f))) { Write-Output "MISSING FROM PACKAGE: $f"; exit 1 }
+          }
+          Write-Output 'baked trial files present in app.asar'
+          $verify = @'
+          const path = require('path');
+          const asar = path.join(process.cwd(), 'dist', 'win-unpacked', 'resources', 'app.asar');
+          const trial = require(asar + '/src/main/trial.js');
+          const s = trial.status();
+          console.log('packaged trial status: ' + JSON.stringify(s));
+          if (!s.trial) { console.error('TRIAL NOT DETECTED FROM PACKAGED ASAR'); process.exit(1); }
+          if (s.capMs !== 15 * 60 * 1000) { console.error('WRONG CAP: ' + s.capMs); process.exit(1); }
+          process.exit(0);
+          '@
+          Set-Content -Path verify-packaged-trial.js -Value $verify
+          npx electron verify-packaged-trial.js
+          Remove-Item verify-packaged-trial.js
+          Write-Output 'trial mode activates from the packaged app'
+
       - name: name the trial exe
         run: |
           $exe = Get-ChildItem -Path dist -Filter *.exe -File | Select-Object -First 1
