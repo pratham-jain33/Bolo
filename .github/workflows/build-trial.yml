@@ -11,6 +11,9 @@ name: build-trial
 # anyone who unpacks it. The per-computer dictation cap is what bounds the API
 # cost exposure, so use keys you can rotate after the trial.
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
     inputs:
