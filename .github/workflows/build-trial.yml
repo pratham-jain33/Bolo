@@ -86,11 +86,9 @@ jobs:
           npx electron-builder --win dir --x64
           $asar = Join-Path (Get-Location) 'dist/win-unpacked/resources/app.asar'
           if (-not (Test-Path $asar)) { Write-Output 'app.asar missing from dir build'; exit 1 }
-          $files = npx asar list $asar
-          foreach ($f in @('src/main/trial-config.json', 'src/main/seed-keys.js')) {
-            if (-not ($files -match [regex]::Escape($f))) { Write-Output "MISSING FROM PACKAGE: $f"; exit 1 }
-          }
-          Write-Output 'baked trial files present in app.asar'
+          # Load the packaged trial.js straight from the asar and assert trial
+          # mode activates with a cap. This tests the real code path, not just
+          # that a file exists somewhere in the package.
           $verify = @'
           const path = require('path');
           const asar = path.join(process.cwd(), 'dist', 'win-unpacked', 'resources', 'app.asar');
