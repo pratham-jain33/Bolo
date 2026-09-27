@@ -66,9 +66,15 @@ const BOLO_RE = /^[ \t]*(?:const|let)[ \t]+bolo\b/m;
 
 // `seed-keys.js` is the one legitimate absence: it holds live credentials, is
 // gitignored, and keys.js requires it inside a try/catch with a documented
-// "no bundled keys" fallback. The require scan cannot see the try/catch, so
-// the pair is allowlisted here instead of failing every fresh clone.
-const ALLOW_MISSING = new Set(['src/main/keys.js:./seed-keys']);
+// "no bundled keys" fallback. `trial-config.json` is the same story for the
+// trial build: gitignored, baked by the build-trial workflow, and required by
+// trial.js inside a try/catch with a "not a trial build" fallback. The require
+// scan cannot see the try/catch, so both pairs are allowlisted here instead
+// of failing every fresh clone.
+const ALLOW_MISSING = new Set([
+  'src/main/keys.js:./seed-keys',
+  'src/main/trial.js:./trial-config.json'
+]);
 
 // Comments are stripped before the require scan, or this file would fail on its
 // own documentation. Line comments are only stripped where `//` is not preceded
