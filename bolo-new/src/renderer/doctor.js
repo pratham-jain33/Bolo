@@ -7,9 +7,29 @@ const $ = (id) => document.getElementById(id);
 
 const VIEWS = ['record', 'review', 'done', 'history', 'detail', 'settings'];
 
+// Where the header back button (top-left) goes from each view.
+const BACK_OF = {
+  review: 'record',
+  done: 'record',
+  history: 'record',
+  detail: 'history',
+  settings: 'record'
+};
+
 function showView(name) {
   for (const v of VIEWS) $('view-' + v).classList.toggle('active', v === name);
+  const back = $('backBtn');
+  const target = BACK_OF[name] || null;
+  back.hidden = !target;
+  back.dataset.target = target || '';
 }
+
+$('backBtn').onclick = () => {
+  const t = $('backBtn').dataset.target;
+  if (!t) return;
+  if (t === 'history') loadHistory($('historySearch').value);
+  showView(t);
+};
 
 // The note being worked on: { transcript, patient_name, age, symptoms,
 // diagnosis, prescription: [{medicine, dose, timing, duration, uncertain, uncertain_reason}] }
@@ -317,21 +337,27 @@ $('discardBtn').onclick = () => {
   setStatus('Ready. Tap the mic after the patient leaves.', false);
 };
 
-$('detailEdit').onclick = () => {
-  if (!detailNote) return;
-  editingId = detailNote.id;
+// P2: editing a note that was already approved — from the detail view or the
+// history row menu. Returns the note to the review form; approving updates it
+// in place (id, createdAt, transcript and recording are preserved).
+function startEdit(note) {
+  if (!note) return;
+  editingId = note.id;
   current = {
-    transcript: detailNote.transcript || '',
-    patient_name: detailNote.patient_name || '',
-    age: detailNote.age || '',
-    symptoms: detailNote.symptoms || '',
-    diagnosis: detailNote.diagnosis || '',
-    prescription: detailNote.prescription || []
+    transcript: note.transcript || '',
+    patient_name: note.patient_name || '',
+    age: note.age || '',
+    symptoms: note.symptoms || '',
+    diagnosis: note.diagnosis || '',
+    prescription: note.prescription || []
   };
   fillReview(current);
   showView('review');
   setStatus('Editing a saved note — change anything, then approve to save.', false);
-};
+}
+
+$('detailEdit').onclick = () => startEdit(detailNote);
+$('detailDelete').onclick = () => detailNote && deleteNote(detailNote.id);
 
 // ── Done ─────────────────────────────────────────────────────────────────
 
@@ -368,16 +394,29 @@ $('doneNew').onclick = () => {
   setStatus('Ready. Tap the mic after the patient leaves.', false);
 };
 
+// Print the note through the system dialog on the LIVE window: the renderer
+// injects the note HTML into a print-only container and calls window.print().
+// This is what makes the dialog reliable on Windows — the old dedicated
+// print window left the dialog hanging and Print looked dead.
 async function printNote(note) {
   try {
-    const r = await bolo.doctorPrint(note);
-    if (!(r && r.ok) && (!r || r.error !== 'cancelled')) {
+    const r = await bolo.printHtml(note);
+    if (!r || !r.ok) {
       alert('Print failed: ' + ((r && r.error) || 'unknown'));
+      return;
     }
+    $('printRoot').innerHTML = '<style>' + (r.css || '') + '</style>' + (r.body || '');
+    document.body.classList.add('printing');
+    window.print();
   } catch (e) {
     alert('Print failed.');
   }
 }
+
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('printing');
+  $('printRoot').innerHTML = '';
+});
 
 async function shareNote(note) {
   try {
@@ -437,14 +476,73 @@ async function loadHistory(q) {
       const el = document.createElement('div');
       el.className = 'hist-item';
       const rxCount = (n.prescription || []).length;
-      el.innerHTML = '<div class="nm">' + escapeHtml(n.patient_name || 'Patient') + '</div>' +
+      const main = document.createElement('div');
+      main.className = 'hist-main';
+      main.innerHTML = '<div class="nm">' + escapeHtml(n.patient_name || 'Patient') + '</div>' +
         '<div class="meta">' + escapeHtml(n.createdAt || '') +
         (rxCount ? ' · ' + rxCount + ' medicine' + (rxCount > 1 ? 's' : '') : '') + '</div>';
-      el.onclick = () => showDetail(n.id);
+      main.onclick = () => showDetail(n.id);
+      el.appendChild(main);
+      el.appendChild(menuButton(n));
       list.appendChild(el);
     }
   } catch (e) {
     list.innerHTML = '<div class="empty">Could not load history.</div>';
+  }
+}
+
+// The three-dot menu on each history row: view, edit, print, share, delete.
+// One menu open at a time; tapping anywhere else closes it.
+function closeMenus() {
+  document.querySelectorAll('.menu').forEach((m) => m.remove());
+}
+document.addEventListener('click', closeMenus);
+
+function menuButton(note) {
+  const btn = document.createElement('button');
+  btn.className = 'menu-btn';
+  btn.textContent = '⋮';
+  btn.setAttribute('aria-label', 'Note actions');
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const wasOpen = btn.parentElement.querySelector('.menu');
+    closeMenus();
+    if (wasOpen) return;
+    const menu = document.createElement('div');
+    menu.className = 'menu';
+    const items = [
+      ['View note', () => showDetail(note.id), false],
+      ['Edit note', () => startEdit(note), false],
+      ['Print', () => printNote(note), false],
+      ['Share on WhatsApp', () => shareNote(note), false],
+      ['Delete note', () => deleteNote(note.id), true]
+    ];
+    for (const [label, fn, danger] of items) {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (danger) b.className = 'danger';
+      b.onclick = (ev) => { ev.stopPropagation(); closeMenus(); fn(); };
+      menu.appendChild(b);
+    }
+    btn.parentElement.appendChild(menu);
+  };
+  return btn;
+}
+
+// Delete a note for good: the history entry and its recording file go away.
+async function deleteNote(id) {
+  if (!confirm('Delete this note? This cannot be undone.')) return;
+  try {
+    const r = await bolo.historyDelete(id);
+    if (r && r.ok) {
+      if (detailNote && detailNote.id === id) detailNote = null;
+      loadHistory($('historySearch').value);
+      showView('history');
+    } else {
+      alert('Could not delete: ' + ((r && r.error) || 'unknown'));
+    }
+  } catch (e) {
+    alert('Could not delete the note.');
   }
 }
 
@@ -522,16 +620,11 @@ function detailRow(label, value) {
     '<div class="dv">' + escapeHtml(value || '—') + '</div></div>';
 }
 
-$('detailBack').onclick = () => { loadHistory($('historySearch').value); showView('history'); };
 $('detailPrint').onclick = () => detailNote && printNote(detailNote);
 $('detailShare').onclick = () => detailNote && shareNote(detailNote);
 $('detailCopy').onclick = () => detailNote && copyNote(detailNote);
 
-// ── Settings: keys + the dictation shortcut ──────────────────────────────
-
 $('navSettings').onclick = () => { refreshKeyStates(); loadShortcut(); showView('settings'); };
-$('settingsBack').onclick = () => showView('record');
-$('historyBack').onclick = () => showView('record');
 
 $('sarvamSave').onclick = () => saveKey('sarvam', $('sarvamKey'));
 $('groqSave').onclick = () => saveKey('groq', $('groqKey'));
