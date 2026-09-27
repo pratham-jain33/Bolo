@@ -227,13 +227,51 @@ async function main() {
   check('formatNote keeps the fixed labels',
     /Patient:/.test(formatted) && /Prescription:/.test(formatted));
 
-  // ── Print regression: the note window is shown before the system dialog ─
+  // ── Print: the note HTML is injected into the live window and printed ────
+  // with window.print() — the reliable path on Windows. The dedicated print
+  // window is gone.
   const mainDoctorSrc = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'main', 'doctor.js'), 'utf8');
-  const printBody = (mainDoctorSrc.match(/async function printNote[\s\S]*?\n}/) || [''])[0];
-  check('printNote shows the window before the system print dialog',
-    printBody.indexOf('w.show()') !== -1 &&
-    printBody.indexOf('w.show()') < printBody.indexOf('.print('));
+  const rendererHtml = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'renderer', 'doctor.html'), 'utf8');
+  check('printNote no longer uses a dedicated BrowserWindow',
+    !/new BrowserWindow/.test(
+      (mainDoctorSrc.match(/async function printNote[\s\S]*?\n}/) || [''])[0]) &&
+    !/doctor\.printNote/.test(mainDoctorSrc));
+  check('main exposes the print HTML (css + body) for the renderer',
+    /buildPrintBody/.test(mainDoctorSrc) && /PRINT_CSS/.test(mainDoctorSrc));
+  check('print CSS uses Helvetica, not the old serif',
+    /Helvetica/.test(doctor.PRINT_CSS) && !/Georgia/.test(doctor.PRINT_CSS));
+  check('main exposes the history-delete IPC', /bolo:history-delete/.test(mainSrc));
+  check('main exposes the doctor-print-html IPC', /bolo:doctor-print-html/.test(mainSrc));
+  check('preload bridges historyDelete', /historyDelete/.test(preloadSrc));
+  check('preload bridges printHtml', /printHtml/.test(preloadSrc));
+  check('renderer prints via window.print() on the live window',
+    /window\.print\(\)/.test(rendererSrc) && /printRoot/.test(rendererSrc));
+  check('renderer has the header back button',
+    /id="backBtn"/.test(rendererHtml) && /BACK_OF/.test(rendererSrc));
+  check('history rows have a three-dot menu',
+    /\.menu-btn/.test(rendererHtml) && /⋮/.test(rendererSrc));
+  check('no blue anywhere in the renderer UI',
+    !/#1a73e8/i.test(rendererHtml) && !/#1765cc/i.test(rendererHtml));
+  check('renderer uses Helvetica',
+    /Helvetica/.test(rendererHtml));
+  check('structuring prompt never guesses the meal',
+    /NEVER guess the meal/.test(doctor.STRUCTURE_SYSTEM) &&
+    /after meals/.test(doctor.STRUCTURE_SYSTEM));
+
+  // ── Delete: a note and its recording go away for good ──────────────────
+  const delMissing = doctor.deleteNoteFromHistory('nope');
+  check('delete of an unknown note reports not-found',
+    delMissing.ok === false);
+  const delId = doctor.saveNoteToHistory({ ...noteA, transcript: 'to delete' },
+    { buffer: Buffer.from('fake-webm'), mime: 'audio/webm' }).id;
+  const recPath = doctor.getNote(delId).recording;
+  const del = doctor.deleteNoteFromHistory(delId);
+  check('delete removes the note from history',
+    del.ok === true && doctor.getNote(delId) === null);
+  check('delete removes the recording file',
+    !fs.existsSync(path.resolve(path.dirname(doctor.historyFile()), recPath)));
 
   // ── Audio regression: the CSP must allow the recording to play ─────────
   const doctorHtml = fs.readFileSync(
