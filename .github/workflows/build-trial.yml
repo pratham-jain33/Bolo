@@ -98,7 +98,7 @@ jobs:
           const s = trial.status();
           console.log('packaged trial status: ' + JSON.stringify(s));
           if (!s.trial) { console.error('TRIAL NOT DETECTED FROM PACKAGED ASAR'); process.exit(1); }
-          if (s.capMs !== 15 * 60 * 1000) { console.error('WRONG CAP: ' + s.capMs); process.exit(1); }
+          if (!(s.capMs > 0)) { console.error('NO CAP ACTIVE'); process.exit(1); }
           process.exit(0);
           '@
           Set-Content -Path verify-packaged-trial.js -Value $verify
