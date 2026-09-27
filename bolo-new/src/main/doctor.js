@@ -37,6 +37,10 @@ function create(preloadPath, rendererDir) {
 
   win.loadFile(path.join(rendererDir, 'doctor.html'));
   win.on('closed', () => { win = null; });
+  // Trial: there is no tray icon, so closing the visible window must end the
+  // whole process. Otherwise the hidden capture window keeps a zombie alive
+  // (no tray icon to reopen from) and double-clicking the exe does nothing.
+  win.on('close', () => { app.quit(); });
   return win;
 }
 
