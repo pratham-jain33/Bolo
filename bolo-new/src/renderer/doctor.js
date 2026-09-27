@@ -68,11 +68,44 @@ async function toggle() {
 
 $('micBtn').onclick = toggle;
 
+// ── Trial hard stop ──────────────────────────────────────────────────────
+// The trial cap is 15 minutes per computer, full stop. Without this, a
+// recording started with 0:05 left could run for minutes — usage is only
+// recorded after the clip ends. So when a trial recording starts, arm a
+// timer for the remaining allowance that stops the recording for real.
+let isRecording = false;
+let trialStopTimer = null;
+function clearTrialStop() {
+  if (trialStopTimer) { clearTimeout(trialStopTimer); trialStopTimer = null; }
+}
+async function armTrialStop() {
+  clearTrialStop();
+  try {
+    const t = await bolo.trialStatus();
+    if (t && t.trial && !t.expired && !t.exhausted && t.remainingMs > 0) {
+      trialStopTimer = setTimeout(async () => {
+        trialStopTimer = null;
+        if (isRecording) {
+          try { await bolo.doctorToggle(); } catch (_) {}
+          setStatus('Trial dictation time ran out — recording stopped automatically.', false);
+        }
+      }, t.remainingMs);
+    }
+  } catch (_) { /* keyless dev builds: no cap, no timer */ }
+}
+
 bolo.on('bolo:voice-state', (s) => {
   if (!s) return;
-  if (s.state === 'listening') setStatus('Listening… tap the mic to stop.', true);
-  else if (s.state === 'routing') setStatus('Writing down what you said…', false);
-  else if (current === null) setStatus('Ready. Tap the mic after the patient leaves.', false);
+  if (s.state === 'listening') {
+    isRecording = true;
+    setStatus('Listening… tap the mic to stop.', true);
+    armTrialStop();
+  } else {
+    isRecording = false;
+    clearTrialStop();
+    if (s.state === 'routing') setStatus('Writing down what you said…', false);
+    else if (current === null) setStatus('Ready. Tap the mic after the patient leaves.', false);
+  }
 });
 
 // ── Trial mode: per-computer dictation banner ────────────────────────────
