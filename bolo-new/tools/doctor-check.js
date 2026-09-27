@@ -272,6 +272,10 @@ async function main() {
     del.ok === true && doctor.getNote(delId) === null);
   check('delete removes the recording file',
     !fs.existsSync(path.resolve(path.dirname(doctor.historyFile()), recPath)));
+  check('trial recordings hard-stop at the remaining allowance',
+    /armTrialStop/.test(rendererSrc) &&
+    /remainingMs/.test(rendererSrc) &&
+    /Trial dictation time ran out/.test(rendererSrc));
 
   // ── Audio regression: the CSP must allow the recording to play ─────────
   const doctorHtml = fs.readFileSync(
