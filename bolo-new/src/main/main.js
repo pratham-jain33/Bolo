@@ -134,9 +134,25 @@ function registerIpc() {
       return { ok: false, error: (e && e.message) || String(e) };
     }
   });
+  ipcMain.handle('bolo:history-delete', async (_e, id) => {
+    try {
+      return doctor.deleteNoteFromHistory(id);
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
+  });
 
   // ── Outputs: print, share ───────────────────────────────────────────────
-  ipcMain.handle('bolo:doctor-print', async (_e, note) => doctor.printNote(note));
+  // Print renders the note's HTML in the live window and lets the renderer
+  // call window.print() on it — the system dialog is reliable there, unlike
+  // the old dedicated print window.
+  ipcMain.handle('bolo:doctor-print-html', async (_e, note) => {
+    try {
+      return { ok: true, css: doctor.PRINT_CSS, body: doctor.buildPrintBody(note) };
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
+  });
   ipcMain.handle('bolo:share-prescription', async (_e, note) => {
     try {
       const url = 'https://wa.me/?text=' + encodeURIComponent(doctor.shareText(note));
