@@ -112,7 +112,10 @@ const STRUCTURE_SYSTEM = [
   '- "prescription": one object per medicine mentioned.',
   '  - "medicine": the drug name EXACTLY as transcribed. Never fix it.',
   '  - "dose": as said ("650 mg").',
-  '  - "timing": in English ("twice daily", "at bedtime").',
+  '  - "timing": in English ("twice daily", "at bedtime"). NEVER guess the meal:',
+  '    "khane ke baad" or "after food" with no meal named becomes "after meals" —',
+  '    never "after breakfast". Only write breakfast, lunch, or dinner when the',
+  '    doctor actually said that specific meal.',
   '  - "duration": ALWAYS in English ("3 days", never "3 din").',
   '  - Never add units that were not said; never change a number.',
   '- "age": as said ("45", "45 years").'
@@ -293,6 +296,26 @@ function updateNoteInHistory(id, note) {
   return { ok: true, id };
 }
 
+// Delete a note the doctor no longer wants. Removes the history entry and
+// its recording file, if one was kept. The entry is gone for good — the
+// renderer asks for confirmation before calling this.
+function deleteNoteFromHistory(id) {
+  const arr = readHistory();
+  const i = arr.findIndex((e) => e && e.id === id);
+  if (i < 0) return { ok: false, error: 'note not found' };
+  const gone = arr[i];
+  arr.splice(i, 1);
+  if (gone && gone.recording) {
+    const base = path.resolve(path.dirname(historyFile()));
+    const p = path.resolve(base, gone.recording);
+    if (p === base || p.startsWith(base + path.sep)) {
+      try { fs.unlinkSync(p); } catch (_) {}
+    }
+  }
+  writeHistory(arr);
+  return { ok: true, id };
+}
+
 const REC_EXT = {
   'audio/webm': '.webm',
   'audio/wav': '.wav',
@@ -392,9 +415,22 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// The printable note as standalone HTML. Pure function, so the automated
-// check can verify the layout without opening a real print dialog.
-function buildPrintHtml(note) {
+// The printable note's styles and body, kept separate so the renderer can
+// inject them into the live window and print it directly with window.print().
+// Printing the visible window is what makes the system dialog reliable on
+// Windows — the old dedicated-window approach left the dialog hanging.
+const PRINT_CSS = [
+  'body{font-family:Helvetica,Arial,sans-serif;color:#111;max-width:640px;margin:40px auto;padding:0 24px}',
+  'h1{font-size:22px;margin:0 0 4px}.when{color:#666;font-size:13px;margin-bottom:24px}',
+  '.row{margin:0 0 14px}.label{font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#444;margin-bottom:2px}',
+  '.value{font-size:16px;line-height:1.55;border-bottom:1px solid #ddd;padding-bottom:8px;min-height:20px}',
+  'table{width:100%;border-collapse:collapse;margin:8px 0 14px}',
+  'th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#444;text-align:left;border-bottom:2px solid #444;padding:6px 8px}',
+  'td{font-size:15px;border-bottom:1px solid #ddd;padding:6px 8px;vertical-align:top}',
+  '.flag{color:#92400e;font-size:13px}'
+].join('');
+
+function buildPrintBody(note) {
   const n = note || {};
   const rxRows = (n.prescription || []).map((it, i) => {
     const cells = [it.medicine, it.dose, it.timing, it.duration].map((v) =>
@@ -408,59 +444,29 @@ function buildPrintHtml(note) {
   const field = (label, value) =>
     '<div class="row"><div class="label">' + label + '</div>' +
     '<div class="value">' + (escapeHtml(value).replace(/\n/g, '<br>') || '&nbsp;') + '</div></div>';
-  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Patient Note</title>' +
-    '<style>' +
-    'body{font-family:Georgia,serif;color:#111;max-width:640px;margin:40px auto;padding:0 24px}' +
-    'h1{font-size:22px;margin:0 0 4px}.when{color:#666;font-size:13px;margin-bottom:24px}' +
-    '.row{margin:0 0 14px}.label{font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#444;margin-bottom:2px}' +
-    '.value{font-size:16px;line-height:1.55;border-bottom:1px solid #ddd;padding-bottom:8px;min-height:20px}' +
-    'table{width:100%;border-collapse:collapse;margin:8px 0 14px}' +
-    'th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#444;text-align:left;border-bottom:2px solid #444;padding:6px 8px}' +
-    'td{font-size:15px;border-bottom:1px solid #ddd;padding:6px 8px;vertical-align:top}' +
-    '.flag{color:#92400e;font-size:13px}' +
-    '</style></head><body>' +
-    '<h1>Patient Note</h1><div class="when">' + escapeHtml(n.createdAt || '') + '</div>' +
+  return '<h1>Patient Note</h1><div class="when">' + escapeHtml(n.createdAt || '') + '</div>' +
     field('Patient', n.patient_name) +
     field('Age', n.age) +
     field('Symptoms', n.symptoms) +
     field('Diagnosis', n.diagnosis) +
     '<div class="row"><div class="label">Prescription</div>' +
     '<table><tr><th>#</th><th>Medicine</th><th>Dose</th><th>Timing</th><th>Duration</th></tr>' +
-    rxRows + '</table></div>' +
-    '</body></html>';
+    rxRows + '</table></div>';
 }
 
-// Print the approved note through the system print dialog, from a dedicated
-// window carrying only the clean note — not the app UI. The window is SHOWN
-// before printing: on Windows the system dialog does not reliably appear (the
-// print call hangs) for a window that was never visible, which made Print look
-// dead. The brief flash of the clean note doubles as a print preview.
-// A cancelled dialog is 'cancelled', not a failure.
-async function printNote(note) {
-  const html = buildPrintHtml(note);
-  const w = new BrowserWindow({
-    show: false,
-    width: 720,
-    height: 860,
-    webPreferences: { contextIsolation: true, nodeIntegration: false }
-  });
-  try {
-    await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    w.show();
-    w.focus();
-    await w.webContents.print({ silent: false, printBackground: true });
-    return { ok: true };
-  } catch (e) {
-    const msg = String((e && e.message) || e);
-    return { ok: false, error: /cancel/i.test(msg) ? 'cancelled' : msg };
-  } finally {
-    try { w.destroy(); } catch (_) {}
-  }
+// The printable note as standalone HTML. Pure function, so the automated
+// check can verify the layout without opening a real print dialog.
+function buildPrintHtml(note) {
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Patient Note</title>' +
+    '<style>' + PRINT_CSS + '</style></head><body>' +
+    buildPrintBody(note) +
+    '</body></html>';
 }
 
 module.exports = {
   create, getWindow, isOpen, show, send,
   structureNote, validateNote, blankNote, coerceItem, STRUCTURE_SYSTEM, NOTE_FIELDS,
-  listNotes, searchNotes, getNote, saveNoteToHistory, updateNoteInHistory, getNoteAudio, historyFile,
-  formatNote, shareText, buildPrintHtml, printNote, stampOf
+  listNotes, searchNotes, getNote, saveNoteToHistory, updateNoteInHistory, deleteNoteFromHistory,
+  getNoteAudio, historyFile,
+  formatNote, shareText, buildPrintHtml, buildPrintBody, PRINT_CSS, stampOf
 };
