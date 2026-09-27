@@ -103,6 +103,10 @@ bolo.on('bolo:voice-state', (s) => {
   } else {
     isRecording = false;
     clearTrialStop();
+    // A dictation just banked its minutes against the trial cap (usage is
+    // written before the 'idle' state lands) — refresh the trial countdown
+    // so the banner shows the new remaining time immediately.
+    if (s.state === 'idle') refreshTrial();
     if (s.state === 'routing') setStatus('Writing down what you said…', false);
     else if (current === null) setStatus('Ready. Tap the mic after the patient leaves.', false);
   }
@@ -122,13 +126,22 @@ async function refreshTrial() {
     if (t && t.trial) {
       trialExpiryLabel = t.expiryLabel || '';
       el.style.display = '';
+      el.style.color = '';
+      el.style.fontWeight = '';
       if (t.expired) {
         el.textContent = 'This trial ended on ' + trialExpiryLabel + '. Thanks for trying Bolo Doctor.';
       } else if (t.exhausted) {
         el.textContent = 'Trial version — dictation time is used up on this computer.';
       } else {
+        // Visible countdown: remaining minutes, the expiry date, and a red
+        // bold emphasis when under 3 minutes remain.
         el.textContent = 'Trial version — ' + fmtTrialMs(t.remainingMs) + ' of ' + fmtTrialMs(t.capMs) +
-          ' dictation left on this computer.';
+          ' dictation left on this computer.' +
+          (trialExpiryLabel ? ' Trial valid till ' + trialExpiryLabel + '.' : '');
+        if (t.remainingMs < 3 * 60 * 1000) {
+          el.style.color = '#c00000';
+          el.style.fontWeight = 'bold';
+        }
       }
       // Keys are baked into the trial: nothing to paste, nothing to clear.
       $('keyFields').style.display = 'none';
