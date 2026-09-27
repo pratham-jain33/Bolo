@@ -31,9 +31,10 @@ contextBridge.exposeInMainWorld('bolo', {
   historySave: (note) => ipcRenderer.invoke('bolo:history-save', note),
   historyAudio: (id) => ipcRenderer.invoke('bolo:history-audio', id),
   historyUpdate: (id, note) => ipcRenderer.invoke('bolo:history-update', id, note),
+  historyDelete: (id) => ipcRenderer.invoke('bolo:history-delete', id),
 
   /* ── Outputs ────────────────────────────────────────────────────────── */
-  doctorPrint: (note) => ipcRenderer.invoke('bolo:doctor-print', note),
+  printHtml: (note) => ipcRenderer.invoke('bolo:doctor-print-html', note),
   sharePrescription: (note) => ipcRenderer.invoke('bolo:share-prescription', note),
 
   /* ── Keys: Groq (structuring) + Sarvam (Hinglish transcription) ──────── */
