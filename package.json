@@ -1,0 +1,41 @@
+{
+  "name": "bolo",
+  "productName": "Bolo Doctor",
+  "version": "0.1.0",
+  "description": "Bolo Doctor - post-consult voice notes for Indian solo clinics.",
+  "main": "./src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "check": "node ./tools/check.js",
+    "server": "node ./server/stub.js",
+    "demo": "node ./server/stub.js & electron .",
+    "dist": "electron-builder --win --x64 --dir"
+  },
+  "license": "MIT",
+  "build": {
+    "appId": "com.bolo.os",
+    "productName": "Bolo Doctor",
+    "files": [
+      "src/**/*",
+      "server/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "dir"
+      ]
+    },
+    "asar": true
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}

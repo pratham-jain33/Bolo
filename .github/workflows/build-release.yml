@@ -1,0 +1,77 @@
+name: build-release
+
+# Clean public release of Bolo Doctor: a portable Windows .exe with no trial
+# machinery and no baked keys. Doctors paste their own Sarvam + Groq keys in
+# Settings (bring-your-own-keys); the demo button needs no keys at all.
+# Trigger manually when a new exe is needed. Produces a GitHub Release with a
+# stable download link.
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (must be new, e.g. v0.1)'
+        required: true
+        default: 'v0.1'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: static checks (syntax + require graph)
+        run: npm run check
+
+      - name: build portable exe
+        run: npx electron-builder --win portable --x64
+
+      - name: name the exe BoloDoctor.exe
+        run: |
+          $exe = Get-ChildItem -Path dist -Filter *.exe -File | Select-Object -First 1
+          if (-not $exe) { Write-Output 'no exe was produced'; exit 1 }
+          Copy-Item $exe.FullName (Join-Path dist 'BoloDoctor.exe')
+          Write-Output 'built BoloDoctor.exe'
+
+      # The Sep 2026 trial incident was a packaging bug (a file missing from the
+      # asar), so every release proves the packaged exe actually boots and
+      # stays alive before it ships.
+      - name: boot the packaged exe like a doctor would
+        timeout-minutes: 5
+        run: |
+          $p = Start-Process (Join-Path $PWD 'dist\BoloDoctor.exe') -PassThru
+          Start-Sleep -Seconds 25
+          if ($p.HasExited) { Write-Output 'PACKAGED EXE EXITED DURING BOOT'; exit 1 }
+          Write-Output 'packaged exe stayed alive for 25s'
+          Stop-Process -Id $p.Id -Force
+
+      - name: upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BoloDoctor-${{ inputs.tag }}
+          path: dist/BoloDoctor.exe
+
+      - name: publish GitHub release (stable download link)
+        run: |
+          gh release create $env:TAG "dist/BoloDoctor.exe" `
+            --title "Bolo Doctor $env:TAG" `
+            --notes "Bolo Doctor $env:TAG - open-source voice notes for small clinics. Download BoloDoctor.exe and double-click to run; no install needed. Paste your own Sarvam and Groq keys in Settings (the demo button needs no keys at all). Windows may show an Unknown publisher warning - click More info, then Run anyway."
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
