@@ -43,7 +43,11 @@ function setStatus(text, live) {
   $('status').textContent = text;
   $('status').classList.toggle('live', !!live);
   $('micBtn').classList.toggle('live', !!live);
-  $('micBtn').innerHTML = live ? 'Tap to<br>stop' : 'Tap to<br>dictate';
+  // The mic button keeps its icon; only the label text changes.
+  const label = $('micLabel');
+  const html = live ? 'Tap to<br>stop' : 'Tap to<br>dictate';
+  if (label) label.innerHTML = html;
+  else $('micBtn').innerHTML = html;
 }
 
 // ── Recording ────────────────────────────────────────────────────────────
@@ -615,15 +619,18 @@ async function refreshKeyStates() {
   try {
     const r = await bolo.keysList();
     const p = (r && r.providers) || {};
-    $('sarvamState').textContent = keyLine(p.sarvam, 'Sarvam');
-    $('groqState').textContent = keyLine(p.groq, 'Groq');
+    setKeyState('sarvamState', p.sarvam, 'Sarvam');
+    setKeyState('groqState', p.groq, 'Groq');
   } catch (_) {}
 }
 
-function keyLine(info, name) {
+function setKeyState(id, info, name) {
+  const el = $(id);
+  if (!el) return;
   const n = info ? info.count : 0;
-  return n ? n + ' ' + name + ' key' + (n > 1 ? 's' : '') + ' saved.'
-           : 'No ' + name + ' key saved.';
+  el.textContent = n ? n + ' ' + name + ' key' + (n > 1 ? 's' : '') + ' saved.'
+                     : 'No ' + name + ' key saved.';
+  el.classList.toggle('ok', n > 0);
 }
 
 // The dictation shortcut, shown on the main screen and editable in Settings.

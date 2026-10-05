@@ -3,99 +3,282 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; media-src blob: data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bolo Doctor</title>
 <style>
+  :root {
+    --paper: #f5f1e8;
+    --card: #fffdf8;
+    --ink: #1c1917;
+    --ink-soft: #57534e;
+    --ink-faint: #a8a29e;
+    --line: #e9e1cd;
+    --teal: #0f766e;
+    --teal-deep: #115e59;
+    --teal-tint: #e3f2f0;
+    --amber: #b45309;
+    --amber-bg: #fdf3e3;
+    --amber-line: #f0d9ae;
+    --red: #dc2626;
+    --red-tint: #fdecec;
+    --shadow: 0 1px 2px rgba(60, 50, 30, .05), 0 6px 20px rgba(60, 50, 30, .07);
+    --radius: 14px;
+  }
   * { box-sizing: border-box; }
-  body { font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #1a1a1a; background: #fff; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    margin: 0; color: var(--ink); background: var(--paper);
+    -webkit-font-smoothing: antialiased;
+  }
   button, input, textarea, select { font-family: inherit; }
-  header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #eee; }
-  #backBtn { border: none; background: none; font-size: 22px; line-height: 1; padding: 6px 10px 6px 2px; cursor: pointer; color: #1a1a1a; }
-  #backBtn:hover { color: #555; }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    background: rgba(245, 241, 232, .92);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  #backBtn {
+    border: none; background: none; font-size: 22px; line-height: 1;
+    padding: 6px 10px 6px 2px; cursor: pointer; color: var(--ink-soft);
+  }
+  #backBtn:hover { color: var(--ink); }
   #backBtn[hidden] { display: none; }
-  header h1 { font-size: 18px; margin: 0; font-weight: 700; flex: 1; }
-  header .nav button { margin-left: 8px; }
-  button { font-size: 14px; padding: 8px 14px; border-radius: 8px; border: 1px solid #d8d8d8; background: #f7f7f7; color: #1a1a1a; cursor: pointer; }
-  button:hover { background: #efefef; }
-  button:disabled { opacity: 0.45; cursor: default; }
-  button.primary { background: #1a1a1a; border-color: #1a1a1a; color: #fff; font-weight: 600; }
-  button.primary:hover { background: #333; }
-  button.danger { color: #b3261e; }
-  .view { display: none; padding: 18px; max-width: 560px; margin: 0 auto; }
-  .view.active { display: block; }
+  .brand { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
+  .brand svg { flex: none; display: block; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+  header .nav { display: flex; gap: 4px; }
+  header .nav button {
+    border: none; background: none; color: var(--ink-soft);
+    font-size: 14px; font-weight: 600; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  }
+  header .nav button:hover { background: rgba(15, 118, 110, .08); color: var(--teal-deep); }
 
-  /* Record view */
-  #micWrap { text-align: center; padding: 34px 0 10px; }
-  #micBtn { width: 128px; height: 128px; border-radius: 50%; font-size: 15px; border: none; background: #1a1a1a; color: #fff; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
-  #micBtn.live { background: #d93025; box-shadow: 0 6px 20px rgba(217,48,37,.35); animation: pulse 1.4s infinite; }
-  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-  #status { text-align: center; margin: 16px 0 6px; font-size: 14px; color: #444; min-height: 20px; }
-  #status.live { color: #d93025; font-weight: 600; }
-  #demoBtn { margin: 10px auto 0; padding: 10px 18px; font-size: 14px; border-radius: 999px; border: 1px solid #1a1a1a; background: #fff; color: #1a1a1a; font-weight: 600; cursor: pointer; }
-  #demoBtn:disabled { opacity: .5; cursor: default; }
-  #transcript { width: 100%; min-height: 110px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-size: 14px; resize: vertical; background: #fafafa; }
-  .hint { font-size: 12.5px; color: #777; margin-top: 12px; line-height: 1.5; }
+  button { font-size: 14px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+  button:hover { border-color: #d8cdb2; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary {
+    background: var(--teal); border-color: var(--teal-deep); color: #fff; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(15, 118, 110, .28);
+  }
+  button.primary:hover { background: var(--teal-deep); }
+  button.danger { color: var(--red); border-color: #f0c9c9; background: #fff; }
+  button.quiet { border-color: transparent; background: transparent; color: var(--ink-soft); font-weight: 600; }
+  button.quiet:hover { background: rgba(0,0,0,.04); }
 
-  /* Review view */
-  .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #555; margin-bottom: 4px; }
-  .field input, .field textarea { width: 100%; font-size: 14.5px; padding: 9px 10px; border: 1px solid #d5d5d5; border-radius: 8px; }
-  .field textarea { min-height: 64px; resize: vertical; }
-  .review-title { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
-  .review-sub { font-size: 13px; color: #666; margin: 0 0 14px; }
-  .rx-row { border: 1px solid #ddd; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
-  .rx-row.needs-check { border-color: #e8a33d; background: #fffaf0; }
+  .view { display: none; padding: 20px 18px 28px; max-width: 600px; margin: 0 auto; }
+  .view.active { display: block; animation: rise .25s ease; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .sheet {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px;
+  }
+
+  /* ── Record view ────────────────────────────────────── */
+  #micWrap { text-align: center; padding: 30px 0 6px; }
+  #micBtn {
+    width: 118px; height: 118px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: radial-gradient(circle at 32% 28%, #14a098, var(--teal) 58%, var(--teal-deep));
+    color: #fff;
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    box-shadow: 0 10px 28px rgba(15, 118, 110, .35), inset 0 1px 0 rgba(255,255,255,.25);
+    transition: transform .15s ease, background .2s ease, box-shadow .2s ease;
+    position: relative;
+  }
+  #micBtn:hover { transform: scale(1.03); }
+  #micBtn:active { transform: scale(.97); }
+  #micBtn svg { width: 34px; height: 34px; }
+  #micLabel { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
+  #micBtn.live {
+    background: radial-gradient(circle at 32% 28%, #f0564a, var(--red) 60%, #b91c1c);
+    box-shadow: 0 10px 28px rgba(220, 38, 38, .4), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  #micBtn.live::after {
+    content: ''; position: absolute; inset: -8px; border-radius: 50%;
+    border: 2px solid rgba(220, 38, 38, .5); animation: ring 1.4s ease-out infinite;
+  }
+  @keyframes ring { from { transform: scale(.92); opacity: 1; } to { transform: scale(1.12); opacity: 0; } }
+  #status { text-align: center; margin: 14px 0 4px; font-size: 14px; color: var(--ink-soft); min-height: 20px; }
+  #status.live { color: var(--red); font-weight: 700; }
+
+  /* Demo entry: a first-class card, not a footnote. */
+  #demoBtn {
+    display: flex; align-items: center; gap: 14px; width: 100%;
+    margin: 18px 0 0; padding: 15px 16px;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); cursor: pointer; text-align: left;
+  }
+  #demoBtn:hover { border-color: var(--teal); }
+  #demoBtn:disabled { opacity: .55; cursor: default; }
+  #demoBtn .play {
+    flex: none; width: 46px; height: 46px; border-radius: 50%;
+    background: var(--teal-tint); color: var(--teal-deep);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #demoBtn .play svg { width: 22px; height: 22px; }
+  #demoBtn .dt { flex: 1; min-width: 0; }
+  #demoBtn .dt b { display: block; font-size: 15px; font-weight: 700; }
+  #demoBtn .dt span { display: block; font-size: 13px; color: var(--ink-soft); margin-top: 2px; line-height: 1.4; }
+  #demoBtn .chev { flex: none; color: var(--ink-faint); font-size: 20px; }
+
+  #transcriptCard { margin-top: 16px; }
+  #transcript {
+    width: 100%; min-height: 104px; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; font-size: 14.5px; line-height: 1.55; resize: vertical;
+    background: #fbf9f3; color: var(--ink);
+  }
+  #transcript::placeholder { color: var(--ink-faint); }
+  .hint { font-size: 12.5px; color: var(--ink-faint); margin-top: 14px; line-height: 1.55; text-align: center; }
+  #shortcutHint { margin-top: 6px; }
+
+  /* ── Review view ────────────────────────────────────── */
+  .review-title { font-size: 19px; font-weight: 800; margin: 2px 0 6px; letter-spacing: -.01em; }
+  .review-sub { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 16px; line-height: 1.55; }
+  .review-sub b { color: var(--amber); }
+  .field { margin-bottom: 14px; }
+  .field > label {
+    display: block; font-size: 11.5px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--ink-soft); margin-bottom: 6px;
+  }
+  .field input, .field textarea {
+    width: 100%; font-size: 15px; padding: 11px 12px;
+    border: 1px solid var(--line); border-radius: 10px; background: #fbf9f3; color: var(--ink);
+  }
+  .field input:focus, .field textarea:focus { outline: 2px solid var(--teal); outline-offset: -1px; border-color: var(--teal); background: #fff; }
+  .field textarea { min-height: 70px; resize: vertical; line-height: 1.5; }
+
+  .rx-row {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px;
+    background: #fbf9f3;
+  }
+  .rx-row.needs-check { border-color: var(--amber-line); background: var(--amber-bg); border-left-width: 4px; }
   .rx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .rx-grid input { width: 100%; font-size: 14px; padding: 8px; border: 1px solid #d5d5d5; border-radius: 6px; }
-  .rx-flag { font-size: 12.5px; color: #92400e; margin-top: 6px; font-weight: 600; }
-  .rx-actions { text-align: right; margin-top: 6px; }
-  .rx-actions button { font-size: 12px; padding: 5px 10px; }
-  .actions { display: flex; gap: 10px; margin-top: 16px; }
-  .actions button { flex: 1; padding: 12px; font-size: 15px; }
+  .rx-grid input {
+    width: 100%; font-size: 14px; padding: 9px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .rx-grid input::placeholder { color: var(--ink-faint); }
+  .rx-flag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; color: var(--amber); margin-top: 8px; font-weight: 700;
+  }
+  .rx-flag::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex: none; }
+  .rx-actions { text-align: right; margin-top: 8px; }
+  .rx-actions button { font-size: 12.5px; padding: 6px 12px; border-radius: 8px; }
+  #rxAdd { width: 100%; border-style: dashed; font-weight: 600; color: var(--teal-deep); padding: 11px; }
+  #rxAdd:hover { background: var(--teal-tint); border-color: var(--teal); }
 
-  /* Done / detail views */
-  .note-card { border: 1px solid #e3e3e3; border-radius: 10px; padding: 14px; margin-bottom: 12px; cursor: pointer; }
-  .note-card .nm { font-weight: 700; font-size: 15px; }
-  .note-card .meta { font-size: 12.5px; color: #777; margin-top: 2px; }
-  .detail-row { margin-bottom: 10px; }
-  .detail-row .dl { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #555; }
-  .detail-row .dv { font-size: 14.5px; margin-top: 2px; white-space: pre-wrap; }
-  table.rx { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
-  table.rx th { text-align: left; font-size: 11.5px; text-transform: uppercase; color: #555; border-bottom: 2px solid #555; padding: 5px 6px; }
-  table.rx td { border-bottom: 1px solid #e5e5e5; padding: 6px; vertical-align: top; }
-  .flag-inline { color: #92400e; font-size: 12.5px; font-weight: 600; }
+  .stickybar {
+    position: sticky; bottom: 0; margin: 18px -18px -28px; padding: 12px 18px 18px;
+    background: linear-gradient(to top, var(--paper) 72%, rgba(245,241,232,0));
+    display: flex; gap: 10px;
+  }
+  .stickybar .primary { flex: 1.6; padding: 14px; font-size: 15.5px; border-radius: 12px; }
+  .stickybar .quiet { flex: 1; padding: 14px; font-size: 15px; border-radius: 12px; }
 
-  /* History */
-  #historySearch { width: 100%; font-size: 14.5px; padding: 10px; border: 1px solid #d5d5d5; border-radius: 8px; margin-bottom: 12px; }
-  .hist-item { position: relative; display: flex; align-items: center; border: 1px solid #e3e3e3; border-radius: 10px; padding: 12px 8px 12px 14px; margin-bottom: 8px; }
-  .hist-item:hover { background: #fafafa; }
+  /* ── Done view ──────────────────────────────────────── */
+  .done-hero { text-align: center; padding: 26px 0 6px; }
+  .done-hero .check {
+    width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 12px;
+    background: var(--teal-tint); color: var(--teal-deep);
+    display: flex; align-items: center; justify-content: center;
+    animation: pop .3s ease;
+  }
+  .done-hero .check svg { width: 30px; height: 30px; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .done-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .done-grid button { padding: 13px 8px; font-size: 14px; font-weight: 700; border-radius: 12px; }
+  #doneNew { width: 100%; margin-top: 10px; padding: 13px; font-weight: 700; border-radius: 12px; }
+
+  /* ── Note cards / history / detail ──────────────────── */
+  .note-card {
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 16px;
+    margin-bottom: 12px; cursor: pointer; background: var(--card); box-shadow: var(--shadow);
+  }
+  .note-card .nm { font-weight: 800; font-size: 16px; }
+  .note-card .meta { font-size: 12.5px; color: var(--ink-faint); margin-top: 3px; }
+  .detail-row { margin-bottom: 12px; }
+  .detail-row .dl {
+    font-size: 11.5px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--ink-soft); margin-bottom: 4px;
+  }
+  .detail-row .dv { font-size: 15px; margin-top: 2px; white-space: pre-wrap; line-height: 1.55; }
+  table.rx { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  table.rx th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--ink-soft); background: #f5f0e4; padding: 8px 10px;
+  }
+  table.rx td { border-top: 1px solid var(--line); padding: 9px 10px; vertical-align: top; }
+  .flag-inline { color: var(--amber); font-size: 12.5px; font-weight: 700; }
+
+  #historySearch {
+    width: 100%; font-size: 15px; padding: 12px 14px; border: 1px solid var(--line);
+    border-radius: 12px; margin-bottom: 14px; background: var(--card); color: var(--ink);
+  }
+  #historySearch::placeholder { color: var(--ink-faint); }
+  .hist-item {
+    position: relative; display: flex; align-items: center;
+    border: 1px solid var(--line); border-radius: 12px; padding: 13px 8px 13px 16px; margin-bottom: 10px;
+    background: var(--card); box-shadow: var(--shadow);
+  }
   .hist-main { flex: 1; cursor: pointer; min-width: 0; }
-  .hist-main .nm { font-weight: 700; }
-  .hist-main .meta { font-size: 12.5px; color: #777; }
-  .menu-btn { border: none; background: none; font-size: 20px; line-height: 1; padding: 8px 12px; cursor: pointer; color: #555; border-radius: 8px; letter-spacing: 0; }
-  .menu-btn:hover { background: #f0f0f0; color: #1a1a1a; }
-  .menu { position: absolute; right: 8px; top: 46px; background: #fff; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 50; min-width: 200px; padding: 6px; }
-  .menu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 10px 12px; font-size: 14px; border-radius: 6px; color: #1a1a1a; }
-  .menu button:hover { background: #f4f4f4; }
-  .menu button.danger { color: #b3261e; }
-  .empty { color: #888; font-size: 14px; text-align: center; padding: 30px 0; }
+  .hist-main .nm { font-weight: 700; font-size: 15px; }
+  .hist-main .meta { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+  .menu-btn {
+    border: none; background: none; font-size: 20px; line-height: 1; padding: 8px 12px;
+    cursor: pointer; color: var(--ink-faint); border-radius: 8px;
+  }
+  .menu-btn:hover { background: rgba(0,0,0,.05); color: var(--ink); }
+  .menu {
+    position: absolute; right: 8px; top: 48px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(60,50,30,.16);
+    z-index: 50; min-width: 210px; padding: 6px;
+  }
+  .menu button {
+    display: block; width: 100%; text-align: left; border: none; background: none;
+    padding: 11px 12px; font-size: 14px; border-radius: 8px; color: var(--ink);
+  }
+  .menu button:hover { background: rgba(15,118,110,.07); }
+  .menu button.danger { color: var(--red); }
+  .empty { color: var(--ink-faint); font-size: 14px; text-align: center; padding: 36px 0; }
 
-  /* Keys panel */
-  .key-row { display: flex; gap: 8px; margin-bottom: 14px; }
-  .key-row input { flex: 1; font-size: 14px; padding: 9px 10px; border: 1px solid #d5d5d5; border-radius: 8px; }
-  .key-state { font-size: 12.5px; color: #666; margin: -8px 0 14px; }
+  /* ── Settings ───────────────────────────────────────── */
+  .key-row { display: flex; gap: 8px; margin-bottom: 6px; }
+  .key-row input {
+    flex: 1; font-size: 14px; padding: 11px 12px; border: 1px solid var(--line);
+    border-radius: 10px; background: #fbf9f3; color: var(--ink); min-width: 0;
+  }
+  .key-row button { flex: none; font-weight: 700; }
+  .key-state { font-size: 12.5px; color: var(--ink-soft); margin: 2px 0 16px; }
+  .key-state.ok { color: var(--teal-deep); font-weight: 600; }
 
-  /* Print: only the note renders on paper */
+  /* ── Print: only the note renders on paper ───────────── */
   #printRoot { display: none; }
   @media print {
     body.printing header, body.printing section.view { display: none !important; }
     body.printing #printRoot { display: block !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001s !important; transition-duration: .001s !important; }
   }
 </style>
 </head>
 <body>
 <header>
   <button id="backBtn" hidden aria-label="Back">&#8592;</button>
-  <h1>Bolo Doctor</h1>
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+      <rect x="1" y="1" width="28" height="28" rx="8" fill="#0f766e"/>
+      <path d="M7 15.5h4l2.2-5.5 3.4 11 2.4-7.5 1.4 2H23" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h1>Bolo Doctor</h1>
+  </div>
   <div class="nav">
     <button id="navHistory">History</button>
     <button id="navSettings">Settings</button>
@@ -104,69 +287,99 @@
 
 <!-- 1. Record -->
 <section id="view-record" class="view active">
-  <div id="micWrap"><button id="micBtn">Tap to<br>dictate</button></div>
+  <div id="micWrap">
+    <button id="micBtn" aria-label="Dictate">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="2.5" width="6" height="11" rx="3"/>
+        <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/>
+        <path d="M12 18v3.5"/>
+      </svg>
+      <span id="micLabel">Tap to<br>dictate</span>
+    </button>
+  </div>
   <div id="status">Ready. Tap the mic after the patient leaves.</div>
-  <div class="field">
-    <label>What was heard</label>
-    <textarea id="transcript" readonly placeholder="Your dictation appears here…"></textarea>
+
+  <button id="demoBtn">
+    <span class="play">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+    </span>
+    <span class="dt">
+      <b>Watch a demo</b>
+      <span>No mic or keys needed. Watch a full patient note get written in seconds.</span>
+    </span>
+    <span class="chev">&#8250;</span>
+  </button>
+
+  <div class="sheet" id="transcriptCard" style="margin-top:16px">
+    <div class="field" style="margin-bottom:0">
+      <label>What was heard</label>
+      <textarea id="transcript" readonly placeholder="Your dictation appears here…"></textarea>
+    </div>
   </div>
   <div class="hint">Speak for about 30 seconds in Hinglish: name, age, symptoms, diagnosis, and each medicine with dose, timing, and duration. You will review everything before anything is saved.</div>
   <div class="hint" id="shortcutHint">Shortcut: loading…</div>
-  <div style="text-align:center"><button id="demoBtn">Watch a demo — no mic, no keys needed</button></div>
 </section>
 
 <!-- 2. Review (mandatory) -->
 <section id="view-review" class="view">
   <p class="review-title">Review the note</p>
   <p class="review-sub">Check every field. Nothing is saved or printed until you approve. Anything the app is unsure about is marked <b>needs check</b> — it never guesses a drug name or dose.</p>
-  <div class="field"><label>Patient name</label><input id="fName"></div>
-  <div class="field"><label>Age</label><input id="fAge"></div>
-  <div class="field"><label>Symptoms</label><textarea id="fSymptoms"></textarea></div>
-  <div class="field"><label>Diagnosis</label><input id="fDiagnosis"></div>
-  <div class="field">
-    <label>Prescription</label>
-    <div id="rxList"></div>
-    <button id="rxAdd">+ Add medicine</button>
+  <div class="sheet">
+    <div class="field"><label>Patient name</label><input id="fName" autocomplete="off"></div>
+    <div class="field"><label>Age</label><input id="fAge" autocomplete="off" inputmode="numeric"></div>
+    <div class="field"><label>Symptoms</label><textarea id="fSymptoms"></textarea></div>
+    <div class="field"><label>Diagnosis</label><input id="fDiagnosis" autocomplete="off"></div>
+    <div class="field" style="margin-bottom:4px">
+      <label>Prescription</label>
+      <div id="rxList"></div>
+      <button id="rxAdd">+ Add medicine</button>
+    </div>
   </div>
-  <div class="actions">
+  <div class="stickybar">
     <button id="approveBtn" class="primary">Approve &amp; save</button>
-    <button id="discardBtn" class="danger">Discard</button>
+    <button id="discardBtn" class="quiet">Discard</button>
   </div>
 </section>
 
 <!-- 3. Done -->
 <section id="view-done" class="view">
-  <p class="review-title">Note saved</p>
-  <p class="review-sub" id="doneSub"></p>
+  <div class="done-hero">
+    <div class="check">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>
+    </div>
+    <p class="review-title" style="text-align:center">Note saved</p>
+    <p class="review-sub" id="doneSub" style="text-align:center"></p>
+  </div>
   <div class="note-card" id="doneCard"></div>
-  <div class="actions">
+  <div class="done-grid">
     <button id="donePrint" class="primary">Print</button>
-    <button id="doneShare">Share on WhatsApp</button>
     <button id="doneCopy">Copy</button>
+    <button id="doneShare">WhatsApp</button>
   </div>
-  <div class="actions">
-    <button id="doneNew">New patient</button>
-  </div>
+  <button id="doneNew" class="quiet">New patient</button>
 </section>
 
 <!-- 4. History -->
 <section id="view-history" class="view">
   <p class="review-title">Patient history</p>
+  <p class="review-sub">Every approved note, stored on this machine.</p>
   <input id="historySearch" placeholder="Search by patient name…">
   <div id="historyList"></div>
 </section>
 
 <!-- 5. Detail -->
 <section id="view-detail" class="view">
-  <p class="review-title" id="detailTitle"></p>
-  <p class="review-sub" id="detailSub"></p>
-  <div id="detailBody"></div>
-  <div class="actions">
-    <button id="detailPrint" class="primary">Print</button>
-    <button id="detailShare">Share on WhatsApp</button>
-    <button id="detailCopy">Copy</button>
+  <div class="sheet">
+    <p class="review-title" id="detailTitle"></p>
+    <p class="review-sub" id="detailSub" style="margin-bottom:10px"></p>
+    <div id="detailBody"></div>
   </div>
-  <div class="actions">
+  <div class="done-grid" style="margin-top:14px">
+    <button id="detailPrint" class="primary">Print</button>
+    <button id="detailCopy">Copy</button>
+    <button id="detailShare">WhatsApp</button>
+  </div>
+  <div class="done-grid" style="grid-template-columns:1fr 1fr; margin-top:10px">
     <button id="detailEdit">Edit note</button>
     <button id="detailDelete" class="danger">Delete note</button>
   </div>
@@ -176,18 +389,20 @@
 <section id="view-settings" class="view">
   <p class="review-title">Settings</p>
   <p class="review-sub">Keys stay on this machine. Sarvam transcribes your Hinglish; Groq organizes it into the note.</p>
-  <div id="keyFields">
-  <div class="field"><label>Sarvam key (Hinglish transcription)</label></div>
-  <div class="key-row"><input id="sarvamKey" type="password" placeholder="Paste Sarvam API key"><button id="sarvamSave">Save</button></div>
-  <div class="key-state" id="sarvamState"></div>
-  <div class="field"><label>Groq key (note structuring)</label></div>
-  <div class="key-row"><input id="groqKey" type="password" placeholder="Paste Groq API key"><button id="groqSave">Save</button></div>
-  <div class="key-state" id="groqState"></div>
+  <div class="sheet">
+    <div id="keyFields">
+      <div class="field"><label>Sarvam key (Hinglish transcription)</label></div>
+      <div class="key-row"><input id="sarvamKey" type="password" placeholder="Paste Sarvam API key" autocomplete="off"><button id="sarvamSave">Save</button></div>
+      <div class="key-state" id="sarvamState"></div>
+      <div class="field"><label>Groq key (note structuring)</label></div>
+      <div class="key-row"><input id="groqKey" type="password" placeholder="Paste Groq API key" autocomplete="off"><button id="groqSave">Save</button></div>
+      <div class="key-state" id="groqState"></div>
+    </div>
+    <div class="field"><label>Dictation shortcut</label></div>
+    <p class="review-sub" style="margin-bottom:8px">Press it anywhere — even with another app open — to start or stop dictation.</p>
+    <div class="key-row"><input id="shortcutInput" placeholder="Control+Shift+D" autocomplete="off"><button id="shortcutSave">Save</button></div>
+    <div class="key-state" id="shortcutState" style="margin-bottom:0"></div>
   </div>
-  <div class="field"><label>Dictation shortcut</label></div>
-  <p class="review-sub">Press it anywhere — even with another app open — to start or stop dictation.</p>
-  <div class="key-row"><input id="shortcutInput" placeholder="Control+Shift+D"><button id="shortcutSave">Save</button></div>
-  <div class="key-state" id="shortcutState"></div>
 </section>
 
 <!-- Print target: filled by the renderer, shown only on paper -->
