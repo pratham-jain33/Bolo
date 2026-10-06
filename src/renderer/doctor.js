@@ -594,7 +594,7 @@ $('detailPrint').onclick = () => detailNote && printNote(detailNote);
 $('detailShare').onclick = () => detailNote && shareNote(detailNote);
 $('detailCopy').onclick = () => detailNote && copyNote(detailNote);
 
-$('navSettings').onclick = () => { refreshKeyStates(); loadShortcut(); showView('settings'); };
+$('navSettings').onclick = () => { refreshKeyStates(); loadMicList(); loadShortcut(); showView('settings'); };
 
 $('sarvamSave').onclick = () => saveKey('sarvam', $('sarvamKey'), 'sarvamState', 'Sarvam');
 $('groqSave').onclick = () => saveKey('groq', $('groqKey'), 'groqState', 'Groq');
@@ -671,6 +671,57 @@ function renderKeyList(provider, name, info) {
     listEl.appendChild(row);
   });
 }
+
+// Microphone picker. Lists every input the OS reports; the choice is saved
+// to settings and used for every recording from then on.
+async function loadMicList() {
+  const sel = $('micSelect');
+  const state = $('micState');
+  if (!sel) return;
+  sel.innerHTML = '';
+  const loading = document.createElement('option');
+  loading.value = '';
+  loading.textContent = 'Loading microphones…';
+  sel.appendChild(loading);
+  try {
+    const r = await bolo.micDevices();
+    const devices = (r && r.devices) || [];
+    const saved = (r && r.selected) || '';
+    sel.innerHTML = '';
+    const auto = document.createElement('option');
+    auto.value = '';
+    auto.textContent = 'System default';
+    sel.appendChild(auto);
+    devices.forEach((d, i) => {
+      const o = document.createElement('option');
+      o.value = d.deviceId || '';
+      o.textContent = d.label || ('Microphone ' + (i + 1));
+      sel.appendChild(o);
+    });
+    sel.value = saved;
+    if (sel.value !== saved) sel.value = ''; // saved mic is gone: back to default
+    if (state) {
+      state.textContent = devices.length ? '' : 'No microphones found.';
+      state.classList.remove('ok');
+    }
+  } catch (_) {
+    if (state) state.textContent = 'Could not list microphones.';
+  }
+}
+
+$('micSelect').onchange = async () => {
+  const sel = $('micSelect');
+  const state = $('micState');
+  try {
+    await bolo.micSet(sel.value);
+    if (state) {
+      state.textContent = 'Microphone saved.';
+      state.classList.add('ok');
+    }
+  } catch (_) {
+    if (state) state.textContent = 'Could not save the microphone.';
+  }
+};
 
 // The dictation shortcut, shown on the main screen and editable in Settings.
 async function loadShortcut() {
