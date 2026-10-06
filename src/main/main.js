@@ -157,10 +157,12 @@ function registerIpc() {
   });
 
   // ── Keys: Groq structures the note, Sarvam transcribes Hinglish ─────────
+  // The renderer shows each saved key masked (never the full key) with a
+  // delete button, so a bad key can be spotted and removed in Settings.
   ipcMain.handle('bolo:keys-list', async () => {
     const providers = {};
     for (const p of ['groq', 'sarvam']) {
-      providers[p] = { count: keys.count(p) };
+      providers[p] = { count: keys.count(p), keys: keys.listMasked(p) };
     }
     return { providers };
   });
