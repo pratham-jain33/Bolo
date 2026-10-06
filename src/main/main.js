@@ -188,5 +188,14 @@ function registerIpc() {
   });
 
   // ── Microphones, listed through the capture window ──────────────────────
-  ipcMain.handle('bolo:mic-devices', async () => capture.listDevices());
+  // Microphone picker: the list carries the saved choice, and mic-set
+  // persists it. audio.js reads settings micDeviceId on every recording.
+  ipcMain.handle('bolo:mic-devices', async () => {
+    const r = await capture.listDevices();
+    return { ...r, selected: settings.get('micDeviceId') || '' };
+  });
+  ipcMain.handle('bolo:mic-set', async (_e, deviceId) => {
+    settings.set('micDeviceId', String(deviceId || ''));
+    return { ok: true, deviceId: settings.get('micDeviceId') || '' };
+  });
 }
