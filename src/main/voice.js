@@ -38,21 +38,31 @@ async function transcribe(clip) {
     return { text: '', mode: 'no-audio', error: (clip && clip.error) || 'empty-audio' };
   }
   const wantSarvam = keys.has('sarvam');
+  // Terminal diagnostics: when running from source (`npm start`), these lines
+  // say exactly which backend ran and why it failed. The UI shows a summary;
+  // the terminal shows the truth.
   if (wantSarvam) {
+    console.log('[stt] Sarvam keys:', keys.count('sarvam'), '| model:', settings.get('sarvamModel') || 'saaras:v3');
     const r = await sttSarvam.transcribe(clip.buffer, {
       mime: clip.mime,
       ms: clip.ms,
       wav16k: clip.wav16k
     });
-    if (r.ok) return r;
+    if (r.ok) { console.log('[stt] Sarvam ok,', (r.text || '').length, 'chars'); return r; }
+    console.log('[stt] Sarvam failed:', r.error);
     // Missing keys or an over-long clip: Groq still gets a chance. Any other
     // Sarvam failure is reported as-is so the doctor knows what happened.
     if (r.error !== 'no-keys' && r.error !== 'too-long') return r;
+  } else {
+    console.log('[stt] no Sarvam key saved, using Groq Whisper');
   }
-  return stt.transcribe(clip.buffer, {
+  console.log('[stt] Groq keys:', keys.count('groq'));
+  const g = await stt.transcribe(clip.buffer, {
     mime: clip.mime,
     language: settings.get('defaultLanguage')
   });
+  console.log(g.ok ? '[stt] Groq ok,' : '[stt] Groq failed:', g.ok ? (g.text || '').length + ' chars' : g.error);
+  return g;
 }
 
 // One tap starts listening, the next tap stops and transcribes. `broadcast`
