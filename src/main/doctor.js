@@ -6,7 +6,7 @@
 // an explicit flag for the doctor to check in review. Nothing saves or prints
 // before the doctor approves.
 
-const { BrowserWindow, app } = require('electron');
+const { BrowserWindow, app, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const groq = require('./groq');
@@ -37,6 +37,18 @@ function create(preloadPath, rendererDir) {
 
   win.loadFile(path.join(rendererDir, 'doctor.html'));
   win.on('closed', () => { win = null; });
+  // Electron shows no menu on right-click by default, so mouse-only users
+  // could not paste a key at all. Bring back Cut/Copy/Paste for text fields.
+  win.webContents.on('context-menu', (_e, params) => {
+    if (!params.isEditable) return;
+    Menu.buildFromTemplate([
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { type: 'separator' },
+      { role: 'selectAll' },
+    ]).popup({ window: win });
+  });
   // Note: there is no tray icon, so closing the visible window must end the
   // whole process. Otherwise the hidden capture window keeps a zombie alive
   // (no tray icon to reopen from) and double-clicking the exe does nothing.
