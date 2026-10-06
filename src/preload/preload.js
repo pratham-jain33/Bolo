@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('bolo', {
 
   /* ── Microphones, listed through the capture window ──────────────────── */
   micDevices: () => ipcRenderer.invoke('bolo:mic-devices'),
+  micSet: (id) => ipcRenderer.invoke('bolo:mic-set', id),
 
   /* ── Microphone (capture window only) ─────────────────────────────────── */
   captureLevel: (level) => ipcRenderer.send('bolo:capture-level', level),
