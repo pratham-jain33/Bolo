@@ -596,22 +596,31 @@ $('detailCopy').onclick = () => detailNote && copyNote(detailNote);
 
 $('navSettings').onclick = () => { refreshKeyStates(); loadShortcut(); showView('settings'); };
 
-$('sarvamSave').onclick = () => saveKey('sarvam', $('sarvamKey'));
-$('groqSave').onclick = () => saveKey('groq', $('groqKey'));
+$('sarvamSave').onclick = () => saveKey('sarvam', $('sarvamKey'), 'sarvamState', 'Sarvam');
+$('groqSave').onclick = () => saveKey('groq', $('groqKey'), 'groqState', 'Groq');
 
-async function saveKey(provider, input) {
+async function saveKey(provider, input, stateId, name) {
   const k = input.value.trim();
   if (!k) return;
+  const stateEl = $(stateId);
+  const fail = (msg) => {
+    if (stateEl) { stateEl.textContent = msg; stateEl.classList.remove('ok'); }
+    else alert(msg);
+  };
   try {
     const r = await bolo.keysAdd(k, provider);
     if (r && r.ok) {
       input.value = '';
       await refreshKeyStates();
+    } else if (r && r.error === 'duplicate-key') {
+      fail('That ' + name + ' key is already saved below.');
+    } else if (r && r.error === 'key-too-short') {
+      fail('That key looks too short — make sure you pasted the whole ' + name + ' key.');
     } else {
-      alert('Could not save the key: ' + ((r && r.error) || 'unknown'));
+      fail('Could not save the ' + name + ' key. Try again.');
     }
   } catch (e) {
-    alert('Could not save the key.');
+    fail('Could not save the ' + name + ' key. Try again.');
   }
 }
 
