@@ -257,6 +257,11 @@
   .key-row button { flex: none; font-weight: 700; }
   .key-state { font-size: 12.5px; color: var(--ink-soft); margin: 2px 0 16px; }
   .key-state.ok { color: var(--teal-deep); font-weight: 600; }
+  .key-list { margin: -10px 0 16px; }
+  .key-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; background: #fbf9f3; }
+  .key-item code { flex: 1; font-family: ui-monospace, monospace; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .key-item .in-use { font-size: 11px; color: var(--teal-deep); font-weight: 700; flex: none; }
+  .key-del { flex: none; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
 
   /* ── Print: only the note renders on paper ───────────── */
   #printRoot { display: none; }
@@ -394,9 +399,11 @@
       <div class="field"><label>Sarvam key (Hinglish transcription)</label></div>
       <div class="key-row"><input id="sarvamKey" type="password" placeholder="Paste Sarvam API key" autocomplete="off"><button id="sarvamSave">Save</button></div>
       <div class="key-state" id="sarvamState"></div>
+      <div class="key-list" id="sarvamKeys"></div>
       <div class="field"><label>Groq key (note structuring)</label></div>
       <div class="key-row"><input id="groqKey" type="password" placeholder="Paste Groq API key" autocomplete="off"><button id="groqSave">Save</button></div>
       <div class="key-state" id="groqState"></div>
+      <div class="key-list" id="groqKeys"></div>
     </div>
     <div class="field"><label>Dictation shortcut</label></div>
     <p class="review-sub" style="margin-bottom:8px">Press it anywhere — even with another app open — to start or stop dictation.</p>
