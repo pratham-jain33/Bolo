@@ -148,13 +148,27 @@ $('demoBtn').onclick = async () => {
   }
 };
 
+// Transcription failures say exactly what went wrong — a generic "failed"
+// message is what turns a bad key into an hour of guessing.
+function sttErrorMessage(r) {
+  const e = String((r && r.error) || '');
+  if (r && r.mode === 'no-audio') return 'Heard nothing — try again, a little louder.';
+  if (e === 'no-keys') return 'No transcription key saved — add a Sarvam or Groq key in Settings.';
+  if (/^http-40[13]/.test(e)) return 'The key was rejected (' + e + ') — check it in Settings, or delete it and paste a fresh one.';
+  if (/^http-429/.test(e)) return 'Rate limited (' + e + ') — wait a minute and try again.';
+  if (/^http-/.test(e)) return 'Transcription service error (' + e + ') — try again.';
+  if (e === 'timeout') return 'Transcription timed out — check your internet and try again.';
+  if (e === 'empty-audio') return 'The recording came back empty — check the microphone in Settings.';
+  return 'Transcription failed' + (e ? ' (' + e + ')' : '') + ' — check Settings, then try again.';
+}
+
 bolo.on('bolo:doctor-result', (r) => {
   if (!r) return;
   if (r.text) {
     $('transcript').value = r.text;
     structureIntoReview(r.text);
   } else {
-    setStatus(r.message || 'Heard nothing — try again, a little louder.', false);
+    setStatus(sttErrorMessage(r), false);
   }
 });
 
