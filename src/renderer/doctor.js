@@ -619,18 +619,48 @@ async function refreshKeyStates() {
   try {
     const r = await bolo.keysList();
     const p = (r && r.providers) || {};
-    setKeyState('sarvamState', p.sarvam, 'Sarvam');
-    setKeyState('groqState', p.groq, 'Groq');
+    renderKeyList('sarvam', 'Sarvam', p.sarvam);
+    renderKeyList('groq', 'Groq', p.groq);
   } catch (_) {}
 }
 
-function setKeyState(id, info, name) {
-  const el = $(id);
-  if (!el) return;
-  const n = info ? info.count : 0;
-  el.textContent = n ? n + ' ' + name + ' key' + (n > 1 ? 's' : '') + ' saved.'
-                     : 'No ' + name + ' key saved.';
-  el.classList.toggle('ok', n > 0);
+// Each saved key, masked, with its own delete button — so a bad key can be
+// spotted and removed without guessing which one failed.
+function renderKeyList(provider, name, info) {
+  const stateEl = $(provider + 'State');
+  const listEl = $(provider + 'Keys');
+  const keys = (info && info.keys) || [];
+  if (stateEl) {
+    const n = keys.length;
+    stateEl.textContent = n ? n + ' ' + name + ' key' + (n > 1 ? 's' : '') + ' saved.'
+                            : 'No ' + name + ' key saved.';
+    stateEl.classList.toggle('ok', n > 0);
+  }
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  keys.forEach((k) => {
+    const row = document.createElement('div');
+    row.className = 'key-item';
+    const code = document.createElement('code');
+    code.textContent = k.masked || '••••';
+    row.appendChild(code);
+    if (k.active && keys.length > 1) {
+      const tag = document.createElement('span');
+      tag.className = 'in-use';
+      tag.textContent = 'in use';
+      row.appendChild(tag);
+    }
+    const del = document.createElement('button');
+    del.className = 'key-del';
+    del.textContent = 'Delete';
+    del.onclick = async () => {
+      if (!confirm('Delete this ' + name + ' key?')) return;
+      try { await bolo.keysRemove(k.index, provider); } catch (_) {}
+      await refreshKeyStates();
+    };
+    row.appendChild(del);
+    listEl.appendChild(row);
+  });
 }
 
 // The dictation shortcut, shown on the main screen and editable in Settings.
