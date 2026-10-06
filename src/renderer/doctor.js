@@ -694,7 +694,7 @@ async function loadMicList() {
     sel.appendChild(auto);
     devices.forEach((d, i) => {
       const o = document.createElement('option');
-      o.value = d.deviceId || '';
+      o.value = d.id || d.deviceId || '';
       o.textContent = d.label || ('Microphone ' + (i + 1));
       sel.appendChild(o);
     });
