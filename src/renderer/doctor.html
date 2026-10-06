@@ -250,6 +250,10 @@
 
   /* ── Settings ───────────────────────────────────────── */
   .key-row { display: flex; gap: 8px; margin-bottom: 6px; }
+  .key-row select {
+    flex: 1; font-size: 14px; padding: 11px 12px; border: 1px solid var(--line);
+    border-radius: 10px; background: #fbf9f3; color: var(--ink); min-width: 0;
+  }
   .key-row input {
     flex: 1; font-size: 14px; padding: 11px 12px; border: 1px solid var(--line);
     border-radius: 10px; background: #fbf9f3; color: var(--ink); min-width: 0;
@@ -405,6 +409,9 @@
       <div class="key-state" id="groqState"></div>
       <div class="key-list" id="groqKeys"></div>
     </div>
+    <div class="field"><label>Microphone</label></div>
+    <div class="key-row"><select id="micSelect" autocomplete="off"></select></div>
+    <div class="key-state" id="micState" style="margin-bottom:0"></div>
     <div class="field"><label>Dictation shortcut</label></div>
     <p class="review-sub" style="margin-bottom:8px">Press it anywhere — even with another app open — to start or stop dictation.</p>
     <div class="key-row"><input id="shortcutInput" placeholder="Control+Shift+D" autocomplete="off"><button id="shortcutSave">Save</button></div>
