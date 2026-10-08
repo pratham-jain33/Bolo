@@ -42,3 +42,95 @@ server/         Local stub used for keyless development
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+
+## Tests
+No test suite is defined in this repository.
+
+
+## API reference
+- **IPC channels**
+  - `bolo:doctor-toggle` – toggles dictation, returns current voice state.
+- **Main process modules**
+  - `src/main/main.js` – application entry point, shortcut binding.
+  - `src/main/voice.js` – handles transcription and broadcasting.
+  - `src/main/capture.js` – hidden window managing microphone permissions.
+  - `src/main/doctor.js` – creates the doctor UI window and sends IPC messages.
+  - `src/main/audio.js` – audio level monitoring and control API (`setLevelListener`, `start`, `stop`).
+- **Renderer UI**
+  - `src/renderer/doctor.html` – main interface for review and approval.
+- **Settings**
+  - API keys for Sarvam and Groq are stored via `electron-store`.
+
+
+## Code example
+```javascript
+// Start the app
+npm start
+
+// Global shortcut handling (main process)
+globalShortcut.register('Control+Shift+D', () => {
+  doctor.show();
+  voice.toggle({ broadcast: (ch, p) => doctor.send(ch, p) });
+});
+```
+
+
+## Screenshots
+*No screenshots are provided in the repository.*
+
+
+## Code style
+The project follows standard JavaScript/Electron conventions. No explicit linting or formatting tools are configured in the repository.
+
+
+## Build status
+To build a Windows distribution:
+```bash
+npm run dist
+```
+The `dist` folder will contain the unpacked application (`.exe` and supporting files). No CI badge is defined in the repository.
+
+
+## How to use
+1. Launch the app (`npm start` or double‑click the exe).  
+2. Tap the microphone button **or** press **Ctrl+Shift+D** to start dictation.  
+3. Speak for ~30 seconds after the patient leaves.  
+4. Review the generated note, edit any fields, and click **Approve**.  
+5. Save, print, or share the approved note.
+
+
+## Installation
+```bash
+npm ci
+npm start
+```
+*For Windows users, a pre‑built `BoloDoctor.exe` can be downloaded from the Releases page.*
+
+
+## Features
+- Single‑button dictation with optional global shortcut (Ctrl+Shift+D)
+- Real‑time audio level monitoring
+- AI‑driven transcription (Sarvam) and structuring (Groq) into JSON notes
+- Review, edit, and approve notes before any save/print/share
+- Local storage of notes and recordings in `Documents/BoloDoctor/`
+- No cloud sync; keys stay on the machine
+- Demo mode with canned dictation (no API keys required)
+- Hidden capture window isolates microphone access
+- Cross‑platform Electron app (Windows focus)
+
+
+## Tech/framework used
+- **Language:** JavaScript (Node.js)
+- **Runtime:** Electron ^33.0.0
+- **Build tool:** electron-builder
+- **Storage:** electron-store
+- **Other:** Uses Sarvam for transcription and Groq for structuring (via API keys)
+
+
+## Motivation
+Open source voice notes for small clinics. After a patient leaves, the doctor can tap a button or use a global shortcut, speak for about thirty seconds in Hindi, English, or Hinglish, and receive a clean, structured patient note without typing or integrating with other clinic software.
+
+---
+
+*Created with [repo-doctor](https://prathamjain.com/projects/repo-doctor)*
