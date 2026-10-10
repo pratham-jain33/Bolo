@@ -32,10 +32,6 @@ contextBridge.exposeInMainWorld('bolo', {
   historyAudio: (id) => ipcRenderer.invoke('bolo:history-audio', id),
   historyUpdate: (id, note) => ipcRenderer.invoke('bolo:history-update', id, note),
   historyDelete: (id) => ipcRenderer.invoke('bolo:history-delete', id),
-  patientsList: () => ipcRenderer.invoke('bolo:patients-list'),
-  patientNotes: (pid) => ipcRenderer.invoke('bolo:patient-notes', pid),
-  historyAddendum: (id, text) => ipcRenderer.invoke('bolo:history-addendum', id, text),
-  addendumToggle: () => ipcRenderer.invoke('bolo:addendum-toggle'),
 
   /* ── Outputs ────────────────────────────────────────────────────────── */
   printHtml: (note) => ipcRenderer.invoke('bolo:doctor-print-html', note),

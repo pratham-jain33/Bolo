@@ -189,12 +189,6 @@ async function structureIntoReview(text) {
   }
   current = { transcript: text, ...note };
   fillReview(current);
-  // A patient picked before dictating: their name and age are already known,
-  // so the review form starts filled and the note attaches to them on save.
-  if (activePatient) {
-    if (!$('fName').value.trim()) $('fName').value = activePatient.name || '';
-    if (!$('fAge').value.trim() && activePatient.age) $('fAge').value = activePatient.age;
-  }
   showView('review');
   setStatus('Ready. Tap the mic after the patient leaves.', false);
 }
@@ -304,12 +298,10 @@ $('approveBtn').onclick = async () => {
         alert('Update failed: ' + ((r && r.error) || 'unknown'));
       }
     } else {
-      if (activePatient && !note.patientId) note.patientId = activePatient.id;
       const r = await bolo.historySave(note);
       if (r && r.ok) {
         approved = { ...note, id: r.id, createdAt: new Date().toLocaleString() };
         showDone(approved);
-        refreshPatientBanner();
       } else {
         alert('Save failed: ' + ((r && r.error) || 'unknown'));
       }
@@ -521,38 +513,6 @@ function menuButton(note) {
   return btn;
 }
 
-// Voice addendum on a saved visit: dictate a follow-up note without retyping.
-// The original note is never rewritten — the addendum is timestamped.
-let addendumBusy = false;
-$('detailAddendum').onclick = async () => {
-  if (addendumBusy || !detailNote) return;
-  addendumBusy = true;
-  const btn = $('detailAddendum');
-  try {
-    const r = await bolo.addendumToggle();
-    if (r && r.recording) {
-      btn.textContent = 'Recording… tap to stop and save';
-      btn.classList.add('rec');
-      addendumBusy = false;
-      return;
-    }
-    btn.textContent = 'Dictate addendum';
-    btn.classList.remove('rec');
-    if (r && r.text && r.text.trim()) {
-      const s = await bolo.historyAddendum(detailNote.id, r.text.trim());
-      if (s && s.ok) showDetail(detailNote.id);
-      else alert('Could not save the addendum.');
-    } else if (r && r.error) {
-      alert('Addendum failed: ' + r.error);
-    }
-  } catch (e) {
-    btn.textContent = 'Dictate addendum';
-    btn.classList.remove('rec');
-    alert('Addendum failed.');
-  }
-  addendumBusy = false;
-};
-
 // Delete a note for good: the history entry and its recording file go away.
 async function deleteNote(id) {
   if (!confirm('Delete this note? This cannot be undone.')) return;
@@ -592,11 +552,7 @@ async function showDetail(id) {
       '<div class="detail-row"><div class="dl">Prescription</div>' +
       '<table class="rx"><tr><th>#</th><th>Medicine</th><th>Dose</th><th>Timing</th><th>Duration</th></tr>' +
       rxRows + '</table></div>' +
-      detailRow('What was heard', n.transcript) +
-      ((n.addenda || []).map((a) =>
-        '<div class="addendum"><div class="at">Addendum · ' + escapeHtml(a.at || '') + '</div>' +
-        '<div>' + escapeHtml(a.text || '') + '</div></div>'
-      ).join(''));
+      detailRow('What was heard', n.transcript);
     // The original recording, when this note has one. The player says WHY when
     // something is wrong (missing file, blocked load) instead of a silent 0:00.
     if (n.recording) {
@@ -728,119 +684,6 @@ function renderKeyList(provider, name, info) {
     row.appendChild(del);
     listEl.appendChild(row);
   });
-}
-
-// ── Patient picker: search before dictating ────────────────────────────
-// The patient directory is derived from saved notes (main process). Picking a
-// patient shows their visit timeline and attaches the next approved note to
-// them. A name with no match becomes a new patient on save.
-let activePatient = null; // { id, name, age }
-let patientTimer = null;
-
-function newPatientId() {
-  return 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-}
-
-$('patientSearch').addEventListener('input', () => {
-  clearTimeout(patientTimer);
-  patientTimer = setTimeout(() => renderPatientResults($('patientSearch').value), 200);
-});
-$('patientSearch').addEventListener('focus', () => renderPatientResults($('patientSearch').value));
-
-async function renderPatientResults(q) {
-  const box = $('patientResults');
-  const needle = (q || '').trim().toLowerCase();
-  let patients = [];
-  try { patients = (await bolo.patientsList()) || []; } catch (_) { patients = []; }
-  const matches = needle
-    ? patients.filter((p) => (p.name || '').toLowerCase().includes(needle))
-    : patients.slice(0, 5);
-  box.innerHTML = '';
-  if (!matches.length && !needle) {
-    box.innerHTML = '<div class="empty">No patients yet — saved notes will appear here.</div>';
-    return;
-  }
-  for (const p of matches.slice(0, 8)) {
-    const b = document.createElement('button');
-    b.className = 'pat-row';
-    b.innerHTML = '<span class="nm">' + escapeHtml(p.name || 'Patient') + '</span>' +
-      '<span class="meta">' + escapeHtml([p.age, p.visits + ' visit' + (p.visits === 1 ? '' : 's'), p.lastVisit].filter(Boolean).join(' · ')) + '</span>';
-    b.onclick = () => selectPatient({ id: p.id, name: p.name, age: p.age });
-    box.appendChild(b);
-  }
-  if (needle) {
-    const nb = document.createElement('button');
-    nb.className = 'pat-row new';
-    nb.innerHTML = '<span class="nm">+ New patient: ' + escapeHtml(q.trim()) + '</span>';
-    nb.onclick = () => selectPatient({ id: newPatientId(), name: q.trim(), age: '' });
-    box.appendChild(nb);
-  }
-}
-
-function selectPatient(p) {
-  activePatient = p;
-  $('patientResults').innerHTML = '';
-  $('patientSearch').value = '';
-  renderPatientBanner();
-  loadPatientTimeline();
-}
-
-function clearPatient() {
-  activePatient = null;
-  $('patientBanner').style.display = 'none';
-  $('patientTimeline').innerHTML = '';
-}
-
-function renderPatientBanner() {
-  const bar = $('patientBanner');
-  if (!activePatient) { bar.style.display = 'none'; return; }
-  bar.style.display = 'flex';
-  bar.innerHTML = '<span class="nm">' + escapeHtml(activePatient.name || 'Patient') + '</span>' +
-    '<span class="meta">selected — the next note attaches to them</span>';
-  const x = document.createElement('button');
-  x.textContent = 'Clear';
-  x.onclick = (e) => { e.stopPropagation(); clearPatient(); };
-  bar.appendChild(x);
-}
-
-// Visit count in the banner goes stale after a save; refresh it quietly.
-async function refreshPatientBanner() {
-  if (!activePatient) return;
-  try {
-    const patients = (await bolo.patientsList()) || [];
-    const fresh = patients.find((p) => p.id === activePatient.id);
-    if (fresh) {
-      activePatient.age = fresh.age || activePatient.age;
-      renderPatientBanner();
-      loadPatientTimeline();
-    }
-  } catch (_) {}
-}
-
-async function loadPatientTimeline() {
-  const tl = $('patientTimeline');
-  tl.innerHTML = '';
-  if (!activePatient) return;
-  try {
-    const notes = (await bolo.patientNotes(activePatient.id)) || [];
-    if (!notes.length) {
-      tl.innerHTML = '<div class="empty">First visit — dictate below to start their history.</div>';
-      return;
-    }
-    for (const n of notes) {
-      const el = document.createElement('div');
-      el.className = 'visit-card';
-      const rx = (n.prescription || []).length;
-      el.innerHTML = '<div class="dt">' + escapeHtml(n.createdAt || '') +
-        (rx ? ' · ' + rx + ' medicine' + (rx > 1 ? 's' : '') : '') +
-        ((n.addenda || []).length ? ' · ' + n.addenda.length + ' addendum' + (n.addenda.length > 1 ? 's' : '') : '') + '</div>' +
-        '<div class="sx">' + escapeHtml(n.symptoms || n.diagnosis || '—') + '</div>';
-      el.onclick = () => showDetail(n.id);
-      tl.appendChild(el);
-    }
-  } catch (_) {
-    tl.innerHTML = '<div class="empty">Could not load visits.</div>';
-  }
 }
 
 // Microphone picker. Lists every input the OS reports; the choice is saved

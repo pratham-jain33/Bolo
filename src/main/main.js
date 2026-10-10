@@ -134,26 +134,6 @@ function registerIpc() {
       return { ok: false, error: (e && e.message) || String(e) };
     }
   });
-  // ── Patient-centric history: directory, per-patient visits, addenda ────
-  ipcMain.handle('bolo:patients-list', async () => doctor.listPatients());
-  ipcMain.handle('bolo:patient-notes', async (_e, pid) => doctor.notesForPatient(pid));
-  ipcMain.handle('bolo:history-addendum', async (_e, id, text) => {
-    try {
-      return doctor.addAddendum(id, text);
-    } catch (e) {
-      return { ok: false, error: (e && e.message) || String(e) };
-    }
-  });
-  // Voice addendum: a short dictation appended to a saved visit. Separate
-  // from the voice machine's dictation flow — it records, transcribes, and
-  // hands the text back; the renderer then calls bolo:history-addendum.
-  ipcMain.handle('bolo:addendum-toggle', async () => {
-    try {
-      return await voice.addendumToggle();
-    } catch (e) {
-      return { ok: false, error: (e && e.message) || String(e) };
-    }
-  });
 
   // ── Outputs: print, share ───────────────────────────────────────────────
   // Print renders the note's HTML in the live window and lets the renderer
