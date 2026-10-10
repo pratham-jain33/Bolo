@@ -114,4 +114,23 @@ async function toggle({ broadcast } = {}) {
   return { ...getState(), started };
 }
 
-module.exports = { toggle, getState, transcribe, takeRecording };
+// Voice addendum: a short spoken note appended to a saved visit. Deliberately
+// outside the dictation state machine — it records, transcribes, and hands the
+// text back; the renderer then saves it via bolo:history-addendum. Toggle:
+// first call starts the mic, second stops and returns the transcript.
+let addendumRecording = false;
+async function addendumToggle() {
+  if (!addendumRecording) {
+    if (state !== 'idle') return { ok: false, error: 'busy-dictation' };
+    const started = await audio.start({});
+    if (!started.ok) return { ok: false, error: started.error || 'mic-failed' };
+    addendumRecording = true;
+    return { ok: true, recording: true };
+  }
+  addendumRecording = false;
+  const clip = await audio.stop();
+  const t = await transcribe(clip);
+  return { ok: true, recording: false, text: t.text || '', error: t.error || null };
+}
+
+module.exports = { toggle, getState, transcribe, takeRecording, addendumToggle };
