@@ -241,6 +241,64 @@ function listNotes() {
   return readHistory().slice().reverse();
 }
 
+// Patient directory, derived from the notes — no separate store to go stale.
+// Notes with a patientId group by it; older notes without one group by
+// normalized name. Each patient carries visit count and last visit for the
+// pre-dictation picker.
+function listPatients() {
+  const groups = new Map();
+  for (const n of readHistory()) {
+    if (!n) continue;
+    const key = n.patientId || ('name:' + str(n.patient_name).trim().toLowerCase());
+    if (!key || key === 'name:') continue;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        id: n.patientId || key,
+        name: str(n.patient_name),
+        age: str(n.age),
+        visits: 0,
+        lastVisit: null
+      };
+      groups.set(key, g);
+    }
+    g.visits++;
+    if (!g.lastVisit || String(n.createdAt) > String(g.lastVisit)) {
+      g.lastVisit = n.createdAt;
+      g.age = str(n.age) || g.age;
+      g.name = str(n.patient_name) || g.name;
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) =>
+    String(b.lastVisit || '').localeCompare(String(a.lastVisit || '')));
+}
+
+// Notes for one patient, newest first. Accepts a patientId or a legacy
+// name-group key.
+function notesForPatient(pid) {
+  const all = readHistory().slice().reverse();
+  return all.filter((n) => {
+    if (!n) return false;
+    if (n.patientId) return n.patientId === pid;
+    return ('name:' + str(n.patient_name).trim().toLowerCase()) === pid;
+  });
+}
+
+// Append a voice-dictated addendum to a saved visit. The original note is
+// never rewritten — the addendum is timestamped and shown under it.
+function addAddendum(id, text) {
+  const arr = readHistory();
+  const i = arr.findIndex((e) => e && e.id === id);
+  if (i < 0) return { ok: false, error: 'note not found' };
+  const t = str(text).trim();
+  if (!t) return { ok: false, error: 'empty addendum' };
+  const e = arr[i];
+  if (!Array.isArray(e.addenda)) e.addenda = [];
+  e.addenda.push({ at: stampOf(new Date()), text: t });
+  writeHistory(arr);
+  return { ok: true, id };
+}
+
 // Search by patient name, case-insensitive. Empty query lists everything.
 function searchNotes(q) {
   const needle = str(q).toLowerCase();
@@ -263,6 +321,10 @@ function saveNoteToHistory(note, recording) {
   const entry = {
     id: 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
     createdAt: stampOf(new Date()),
+    // Patient identity: set when the doctor picked a patient before dictating.
+    // Notes saved before this existed have no patientId and group by name.
+    patientId: str(n.patientId) || null,
+    addenda: [],
     patient_name: str(n.patient_name),
     age: str(n.age),
     symptoms: str(n.symptoms),
@@ -485,4 +547,7 @@ module.exports = {
   listNotes, searchNotes, getNote, saveNoteToHistory, updateNoteInHistory, deleteNoteFromHistory,
   getNoteAudio, historyFile,
   formatNote, shareText, buildPrintHtml, buildPrintBody, PRINT_CSS, stampOf
+  listPatients,
+  notesForPatient,
+  addAddendum,
 };
