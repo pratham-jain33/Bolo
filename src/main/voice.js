@@ -133,5 +133,4 @@ async function addendumToggle() {
   return { ok: true, recording: false, text: t.text || '', error: t.error || null };
 }
 
-module.exports = { toggle, getState, transcribe, takeRecording   addendumToggle,
-};
+module.exports = { toggle, getState, transcribe, takeRecording, addendumToggle };
