@@ -546,7 +546,7 @@ module.exports = {
   structureNote, validateNote, blankNote, coerceItem, STRUCTURE_SYSTEM, NOTE_FIELDS,
   listNotes, searchNotes, getNote, saveNoteToHistory, updateNoteInHistory, deleteNoteFromHistory,
   getNoteAudio, historyFile,
-  formatNote, shareText, buildPrintHtml, buildPrintBody, PRINT_CSS, stampOf
+  formatNote, shareText, buildPrintHtml, buildPrintBody, PRINT_CSS, stampOf,
   listPatients,
   notesForPatient,
   addAddendum,
